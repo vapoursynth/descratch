@@ -44,18 +44,18 @@ The plugin works only in YV12.
 #include <memory>
 
 
-#define SD_NULL 0
-#define SD_EXTREM 1
-#define SD_TESTED 2
-#define SD_GOOD 4
-#define SD_REJECT 8
+constexpr BYTE SD_NULL = 0;
+constexpr BYTE SD_EXTREM = 1;
+constexpr BYTE SD_TESTED = 2;
+constexpr BYTE SD_GOOD = 4;
+constexpr BYTE SD_REJECT = 8;
 
-#define MODE_NONE 0
-#define MODE_LOW 1
-#define MODE_HIGH 2
-#define MODE_ALL 3
+constexpr int MODE_NONE = 0;
+constexpr int MODE_LOW = 1;
+constexpr int MODE_HIGH = 2;
+constexpr int MODE_ALL = 3;
 
-struct DeScratchSharedData {
+struct DeScratchShared {
 	int mindif;
 	int asym;
 	int maxgap;
@@ -76,19 +76,18 @@ struct DeScratchSharedData {
 	int wright;
 
 	BYTE *scratchdata;
-
 	BYTE *buf;
 	int buf_pitch;
 	int width;
 	int height;
+
+	void DeScratch_pass(const BYTE *srcp, int src_pitch, const BYTE *bluredp, int blured_pitch,
+		BYTE *destp, int dest_pitch, int row_sizep, int heightp, int hscale, int mindifp, int asym);
 };
 
 
-class DeScratch : public GenericVideoFilter, private DeScratchSharedData {
+class DeScratch : public GenericVideoFilter, private DeScratchShared {
     PClip blured_clip;
-
-void DeScratch_pass(const BYTE * srcp, int src_pitch, const BYTE * bluredp,int blured_pitch,
-			BYTE * destp, int dest_pitch, int row_sizep, int heightp, int hscale, int mindifp, int asym);
 
 public:
   // This defines that these functions are present in your class.
@@ -114,7 +113,7 @@ public:
 DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _maxwidth,
 					 int _minlen, int _maxlen, float _maxangle, int _blurlen, int _keep, int _border,
 					 int _modeY, int _modeU, int _modeV, int _mindifUV, bool _mark, int _minwidth, int _wleft, int _wright, IScriptEnvironment* env) :
-	GenericVideoFilter(_child), DeScratchSharedData{ _mindif, _asym , _maxgap, _maxwidth,
+	GenericVideoFilter(_child), DeScratchShared{ _mindif, _asym , _maxgap, _maxwidth,
 		_minlen, _maxlen, _maxangle, _blurlen, _keep, _border,
 		_modeY, _modeU, _modeV, _mindifUV, _mark, _minwidth, _wleft, _wright }
 	{
@@ -888,7 +887,7 @@ void remove_scratches_plane(const BYTE * src_data, int src_pitch, BYTE * dest_da
 
 }
 
-void DeScratch::DeScratch_pass (const BYTE * srcp, int src_pitch, const BYTE * bluredp,int blured_pitch,
+void DeScratchShared::DeScratch_pass (const BYTE * srcp, int src_pitch, const BYTE * bluredp,int blured_pitch,
 			BYTE * destp, int dest_pitch, int row_sizep, int heightp,  int hscale, int mindifp, int asym)
 {
 //		pass for current plane and current sign
@@ -926,7 +925,6 @@ PVideoFrame __stdcall DeScratch::GetFrame (int ndest, IScriptEnvironment* env)
    // Request frame 'n' from the child (source) clip.
 	PVideoFrame src = child->GetFrame(ndest, env);
 	PVideoFrame dest = env->NewVideoFrame(vi);
-//	PVideoFrame tmp = env->NewVideoFrame(vi);
 
 	//   Get  blured frame
 	 PVideoFrame blured = blured_clip->GetFrame(ndest, env);
@@ -1024,20 +1022,10 @@ PVideoFrame __stdcall DeScratch::GetFrame (int ndest, IScriptEnvironment* env)
 		}
 	}
 
-  return dest;    // return computed frame
+  return dest;
 }
 
-//
-//  Clear data on exit function *******************************************************
-//
-
-//
-// This is the function that created the filter, when the filter has been called.
-// This can be used for simple parameter checking, so it is possible to create different filters,
-// based on the arguments recieved.
-
 AVSValue __cdecl Create_DeScratch(AVSValue args, void* user_data, IScriptEnvironment* env) {
-
 
     return new DeScratch(args[0].AsClip(), // the 0th parameter is the source clip
 		 args[1].AsInt(5), //mindif
@@ -1089,7 +1077,7 @@ extern "C" __declspec(dllexport) const char* __stdcall AvisynthPluginInit3(IScri
 
 
 
-struct DeScratchVSData : public DeScratchSharedData {
+struct DeScratchVSData : public DeScratchShared {
 	VSNode *node;
 	VSNode *blured_clip;
 };
@@ -1104,87 +1092,75 @@ static const VSFrame *VS_CC deScratchGetFrame(int n, int activationReason, void 
 	} else if (activationReason == arAllFramesReady) {
 		const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
 		const VSFrame *blured = vsapi->getFrameFilter(n, d->blured_clip, frameCtx);
+		VSFrame *dest = vsapi->newVideoFrame(vsapi->getVideoFrameFormat(src), d->width, d->height, src, core);
 
-		PVideoFrame dest = env->NewVideoFrame(vi);
+		const BYTE *bluredp;
+		int blured_pitch;
+		BYTE *destp;
+		int dest_pitch;
+		const BYTE *srcp;
+		int src_pitch;
+		int row_size;
+		int heightp;
+		int wleftp;
+		int wrightp;
 
-		int sign;
-		int plane;
+		auto populatePlaneInfo = [&](int plane) {
+			bluredp = vsapi->getReadPtr(blured, plane);
+			blured_pitch = vsapi->getStride(blured, plane);
+			destp = vsapi->getWritePtr(dest, plane);
+			dest_pitch = vsapi->getStride(dest, plane);
+			srcp = vsapi->getReadPtr(src, plane);
+			src_pitch = vsapi->getStride(src, plane);
+			row_size = vsapi->getFrameWidth(src, plane);
+			heightp = vsapi->getFrameHeight(src, plane);
+			wleftp = d->wleft * row_size / d->width;
+			wrightp = d->wright * row_size / d->width;
+			};
 
-		plane = PLANAR_Y;
-		const BYTE *bluredp = blured->GetReadPtr(plane);
-		int blured_pitch = blured->GetPitch(plane);
-		BYTE *destp = dest->GetWritePtr(plane);
-		int dest_pitch = dest->GetPitch(plane);
-		const BYTE *srcp = src->GetReadPtr(plane);
-		int src_pitch = src->GetPitch(plane);
-		int row_size = src->GetRowSize(plane);
-		int heightp = src->GetHeight(plane);
-		int wleftp = wleft * row_size / width;
-		int wrightp = wright * row_size / width;
+		populatePlaneInfo(0);
 
 		// remove scratches  for every plane and sign independently
-		if (modeY == MODE_ALL) {
-			env->BitBlt(buf, buf_pitch, srcp, src_pitch, row_size, heightp);
-			DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, buf + wleftp, buf_pitch, wrightp - wleftp, heightp, height / heightp, mindif, asym);
-			env->BitBlt(destp, dest_pitch, buf, buf_pitch, row_size, heightp);
-			DeScratch_pass(buf + wleftp, buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, (height / heightp), (-mindif), asym);
+		if (d->modeY == MODE_ALL) {
+			vsh::bitblt(d->buf, d->buf_pitch, srcp, src_pitch, row_size, heightp);
+			d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, d->buf + wleftp, d->buf_pitch, wrightp - wleftp, heightp, d->height / heightp, d->mindif, d->asym);
+			vsh::bitblt(destp, dest_pitch, d->buf, d->buf_pitch, row_size, heightp);
+			d->DeScratch_pass(d->buf + wleftp, d->buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, (d->height / heightp), (-d->mindif), d->asym);
 		} else {
-			env->BitBlt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
-			if (modeY == MODE_LOW || modeY == MODE_HIGH) {
-				sign = (modeY == MODE_LOW) ? 1 : -1;
-				DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, height / heightp, sign * mindif, asym);
+			vsh::bitblt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
+			if (d->modeY == MODE_LOW || d->modeY == MODE_HIGH) {
+				int sign = (d->modeY == MODE_LOW) ? 1 : -1;
+				d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, d->height / heightp, sign * d->mindif, d->asym);
 			}
 		}
 
+		populatePlaneInfo(1);
 
-		plane = PLANAR_U;
-		bluredp = blured->GetReadPtr(plane);
-		blured_pitch = blured->GetPitch(plane);
-		destp = dest->GetWritePtr(plane);
-		dest_pitch = dest->GetPitch(plane);
-		srcp = src->GetReadPtr(plane);
-		src_pitch = src->GetPitch(plane);
-		row_size = src->GetRowSize(plane);
-		heightp = src->GetHeight(plane);
-		wleftp = wleft * row_size / width;
-		wrightp = wright * row_size / width;
-
-		if (modeU == MODE_ALL) {
-			env->BitBlt(buf, buf_pitch, srcp, src_pitch, row_size, heightp);
-			DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, buf + wleftp, buf_pitch, wrightp - wleftp, heightp, height / heightp, mindifUV, asym);
-			env->BitBlt(destp, dest_pitch, buf, buf_pitch, row_size, heightp);
-			DeScratch_pass(buf + wleftp, buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, height / heightp, -mindifUV, asym);
+		if (d->modeU == MODE_ALL) {
+			vsh::bitblt(d->buf, d->buf_pitch, srcp, src_pitch, row_size, heightp);
+			d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, d->buf + wleftp, d->buf_pitch, wrightp - wleftp, heightp, d->height / heightp, d->mindifUV, d->asym);
+			vsh::bitblt(destp, dest_pitch, d->buf, d->buf_pitch, row_size, heightp);
+			d->DeScratch_pass(d->buf + wleftp, d->buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, d->height / heightp, -d->mindifUV, d->asym);
 		} else {
-			env->BitBlt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
-			if (modeU == MODE_LOW || modeU == MODE_HIGH) {
-				sign = (modeU == MODE_LOW) ? 1 : -1;
-				DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, height / heightp, sign * mindifUV, asym);
+			vsh::bitblt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
+			if (d->modeU == MODE_LOW || d->modeU == MODE_HIGH) {
+				int sign = (d->modeU == MODE_LOW) ? 1 : -1;
+				d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, d->height / heightp, sign * d->mindifUV, d->asym);
 			}
 		}
 
+		populatePlaneInfo(2);
 
-		plane = PLANAR_V;
-		bluredp = blured->GetReadPtr(plane);
-		blured_pitch = blured->GetPitch(plane);
-		destp = dest->GetWritePtr(plane);
-		dest_pitch = dest->GetPitch(plane);
-		srcp = src->GetReadPtr(plane);
-		src_pitch = src->GetPitch(plane);
-		row_size = src->GetRowSize(plane);
-		heightp = src->GetHeight(plane);
-		wleftp = wleft * row_size / width;
-		wrightp = wright * row_size / width;
-
-		if (modeV == MODE_ALL) {
-			env->BitBlt(buf, buf_pitch, srcp, src_pitch, row_size, heightp);
-			DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, buf + wleftp, buf_pitch, wrightp - wleftp, heightp, height / heightp, mindifUV, asym);
-			env->BitBlt(destp, dest_pitch, buf, buf_pitch, row_size, heightp);
-			DeScratch_pass(buf + wleftp, buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, height / heightp, -mindifUV, asym);
+		if (d->modeV == MODE_ALL) {
+			vsh::bitblt(d->buf, d->buf_pitch, srcp, src_pitch, row_size, heightp);
+			d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, d->buf + wleftp, d->buf_pitch, wrightp - wleftp, heightp, d->height / heightp, d->mindifUV, d->asym);
+			vsh::bitblt(destp, dest_pitch, d->buf, d->buf_pitch, row_size, heightp);
+			d->DeScratch_pass(d->buf + wleftp, d->buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, d->height / heightp, -d->mindifUV, d->asym);
 		} else {
-			env->BitBlt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
-			if (modeV == MODE_LOW || modeV == MODE_HIGH) {
-				sign = (modeV == MODE_LOW) ? 1 : -1;
-				DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, height / heightp, sign * mindifUV, asym);
+			vsh::bitblt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
+			if (d->modeV == MODE_LOW || d->modeV == MODE_HIGH) {
+				int sign = (d->modeV == MODE_LOW) ? 1 : -1;
+				d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, d->height / heightp, sign * d->mindifUV, d->asym);
 			}
 		}
 
@@ -1198,6 +1174,8 @@ static void VS_CC deScratchFree(void *instanceData, VSCore *core, const VSAPI *v
 	DeScratchVSData *d = (DeScratchVSData *)instanceData;
 	vsapi->freeNode(d->node);
 	vsapi->freeNode(d->blured_clip);
+	free(d->buf);
+	free(d->scratchdata);
 	delete d;
 }
 
