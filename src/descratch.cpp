@@ -75,14 +75,18 @@ struct DeScratchShared {
 	int wleft;
 	int wright;
 
-	BYTE *scratchdata;
-	BYTE *buf;
+	BYTE *scratchdata = nullptr;
+	BYTE *buf = nullptr;
 	int buf_pitch;
 	int width;
 	int height;
 
-	void DeScratch_pass(const BYTE *srcp, int src_pitch, const BYTE *bluredp, int blured_pitch,
-		BYTE *destp, int dest_pitch, int row_sizep, int heightp, int hscale, int mindifp, int asym);
+	void DeScratch_pass(const BYTE *VS_RESTRICT srcp, ptrdiff_t src_pitch, const BYTE *VS_RESTRICT bluredp, ptrdiff_t blured_pitch,
+		BYTE *VS_RESTRICT destp, ptrdiff_t dest_pitch, int row_sizep, int heightp, int hscale, int mindifp, int asym);
+	~DeScratchShared() {
+		free(scratchdata);
+		free(buf);
+	}
 };
 
 
@@ -90,23 +94,11 @@ class DeScratch : public GenericVideoFilter, private DeScratchShared {
     PClip blured_clip;
 
 public:
-  // This defines that these functions are present in your class.
-  // These functions must be that same as those actually implemented.
-  // Since the functions are "public" they are accessible to other classes.
-  // Otherwise they can only be called from functions within the class itself.
-
 	DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _maxwidth,
 		int _minlen, int _maxlen, float _maxangle, int _blurlen, int _keep, int _border,
 		int _modeY, int _modeU, int _modeV, int _mindifUV, bool _mark, int _minwidth, int _wleft, int _wright, IScriptEnvironment* env);
-  // This is the constructor. It does not return any value, and is always used,
-  //  when an instance of the class is created.
-  // Since there is no code in this, this is the definition.
-
-  ~DeScratch();
-  // The is the destructor definition. This is called when the filter is destroyed.
 
 	PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment* env);
-  // This is the function that AviSynth calls to get a given frame.
 };
 
 //Here is the acutal constructor code used
@@ -179,36 +171,25 @@ DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _max
       blured_clip = env->Invoke("BicubicResize", AVSValue(blur_args,3)).AsClip();
 
 	  buf = (BYTE *)malloc(height*buf_pitch);
-
 }
-
-// This is where any actual destructor code used goes
-DeScratch::~DeScratch() {
-  // This is where you can deallocate any memory you might have used.
-       free(scratchdata);
-	   free(buf);
-}
-
 
 //
 //
-void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height, BYTE *scratchdata, int mindif, int asym, int maxwidth)
+static void  get_extrems_plane(const BYTE * VS_RESTRICT s, ptrdiff_t src_pitch, int row_size, int height, BYTE * VS_RESTRICT d, int mindif, int asym, int maxwidth)
 {
-  BYTE *d;
-  d = scratchdata;
-  int row, h;
+  //d = scratchdata;
 
   if (mindif>0)
   { // black (low value) scratches
 
-    for (h = 0; h < height; h+=1)
+    for (int h = 0; h < height; h+=1)
 	{
 		switch (maxwidth)
 		{
 			case 1:// added in v 0.9
-			  for (row = 0; row < 2; row += 1)
+			  for (int row = 0; row < 2; row += 1)
       			 d[row] = SD_NULL;
-			  for (row = 2; row < row_size-2; row += 1)
+			  for (int row = 2; row < row_size-2; row += 1)
 			  {    // middle rows
       				if ( (s[row-1]-s[row] > mindif) && (s[row+1]-s[row] > mindif)
      					&& (abs(s[row-2]-s[row+2]) <= asym)  // added in v.0.7
@@ -217,15 +198,15 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 			  }
-			  for (row = row_size-2; row < row_size; row += 1)
+			  for (int row = row_size-2; row < row_size; row += 1)
       			 d[row] = SD_NULL;
 			  break;
 
 			case 3:
 			default:
-			  for (row = 0; row < 3; row += 1)
+			  for (int row = 0; row < 3; row += 1)
       			 d[row] = SD_NULL;
-			  for (row = 3; row < row_size-3; row += 1)
+			  for (int row = 3; row < row_size-3; row += 1)
 			  {    // middle rows
       				if ( (s[row-2]-s[row] > mindif) && (s[row+2]-s[row] > mindif)
      					&& (abs(s[row-3]-s[row+3]) <= asym)  // added in v.0.7
@@ -234,14 +215,14 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 			  }
-			  for (row = row_size-3; row < row_size; row += 1)
+			  for (int row = row_size-3; row < row_size; row += 1)
       			 d[row] = SD_NULL;
 			  break;
 
 			case 5: // v1.0
-			  for (row = 0; row < 4; row += 1)
+			  for (int row = 0; row < 4; row += 1)
       			 d[row] = SD_NULL;
-			  for (row = 4; row < row_size-4; row += 1)
+			  for (int row = 4; row < row_size-4; row += 1)
 			  {    // middle rows
       				if ( (s[row-3]-s[row] > mindif) && (s[row+3]-s[row] > mindif)
      					&& (abs(s[row-4]-s[row+4]) <= asym)
@@ -250,14 +231,14 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 			  }
-			  for (row = row_size-4; row < row_size; row += 1)
+			  for (int row = row_size-4; row < row_size; row += 1)
       			 d[row] = SD_NULL;
 			  break;
 
 			case 7: // v1.0
-			  for (row = 0; row < 5; row += 1)
+			  for (int row = 0; row < 5; row += 1)
       			 d[row] = SD_NULL;
-			  for (row = 5; row < row_size-5; row += 1)
+			  for (int row = 5; row < row_size-5; row += 1)
 			  {    // middle rows
       				if ( (s[row-4]-s[row] > mindif) && (s[row+4]-s[row] > mindif)
      					&& (abs(s[row-5]-s[row+5]) <= asym)
@@ -266,14 +247,14 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 			  }
-			  for (row = row_size-5; row < row_size; row += 1)
+			  for (int row = row_size-5; row < row_size; row += 1)
       			 d[row] = SD_NULL;
 			  break;
 
 			case 9: // v1.0
-			  for (row = 0; row < 6; row += 1)
+			  for (int row = 0; row < 6; row += 1)
       			 d[row] = SD_NULL;
-			  for (row = 6; row < row_size-6; row += 1)
+			  for (int row = 6; row < row_size-6; row += 1)
 			  {    // middle rows
       				if ( (s[row-5]-s[row] > mindif) && (s[row+5]-s[row] > mindif)
      					&& (abs(s[row-6]-s[row+6]) <= asym)
@@ -282,14 +263,14 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 			  }
-			  for (row = row_size-6; row < row_size; row += 1)
+			  for (int row = row_size-6; row < row_size; row += 1)
       			 d[row] = SD_NULL;
 			  break;
 
 			case 11: // v1.0
-			  for (row = 0; row < 7; row += 1)
+			  for (int row = 0; row < 7; row += 1)
       			 d[row] = SD_NULL;
-			  for (row = 7; row < row_size-7; row += 1)
+			  for (int row = 7; row < row_size-7; row += 1)
 			  {    // middle rows
       				if ( (s[row-6]-s[row] > mindif) && (s[row+6]-s[row] > mindif)
      					&& (abs(s[row-7]-s[row+7]) <= asym)
@@ -298,14 +279,14 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 			  }
-			  for (row = row_size-7; row < row_size; row += 1)
+			  for (int row = row_size-7; row < row_size; row += 1)
       			 d[row] = SD_NULL;
 			  break;
 
 			case 13: // v1.0
-			  for (row = 0; row < 8; row += 1)
+			  for (int row = 0; row < 8; row += 1)
       			 d[row] = SD_NULL;
-			  for (row = 8; row < row_size-8; row += 1)
+			  for (int row = 8; row < row_size-8; row += 1)
 			  {    // middle rows
       				if ( (s[row-7]-s[row] > mindif) && (s[row+7]-s[row] > mindif)
      					&& (abs(s[row-8]-s[row+8]) <= asym)
@@ -314,15 +295,15 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 			  }
-			  for (row = row_size-8; row < row_size; row += 1)
+			  for (int row = row_size-8; row < row_size; row += 1)
       			 d[row] = SD_NULL;
 
 			  break;
 
 			case 15: // v1.0
-			  for (row = 0; row < 9; row += 1)
+			  for (int row = 0; row < 9; row += 1)
       			 d[row] = SD_NULL;
-			  for (row = 9; row < row_size-9; row += 1)
+			  for (int row = 9; row < row_size-9; row += 1)
 			  {    // middle rows
       				if ( (s[row-8]-s[row] > mindif) && (s[row+8]-s[row] > mindif)
      					&& (abs(s[row-9]-s[row+9]) <= asym)
@@ -331,7 +312,7 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 			  }
-			  for (row = row_size-9; row < row_size; row += 1)
+			  for (int row = row_size-9; row < row_size; row += 1)
       			 d[row] = SD_NULL;
 
 		}
@@ -344,14 +325,14 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
   else
   {    // white (high value) scratches
 
-    for (h = 0; h < height; h+=1)
+    for (int h = 0; h < height; h+=1)
 	{
 		switch (maxwidth)
 		{
 			case 1: // added in v 0.9
-				for (row = 0; row < 2; row += 1)
+				for (int row = 0; row < 2; row += 1)
       				d[row] = SD_NULL;
-				for (row = 2; row < row_size-2; row += 1)
+				for (int row = 2; row < row_size-2; row += 1)
 				{    // middle rows
       				if ( (s[row-1]-s[row] < mindif) && (s[row+1]-s[row] < mindif)
      					&& (abs(s[row-2]-s[row+2]) <= asym)  // added in v.0.7
@@ -360,15 +341,15 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 				}
-				for (row = row_size-2; row < row_size; row += 1)
+				for (int row = row_size-2; row < row_size; row += 1)
       				d[row] = SD_NULL;
 				break;
 
 			case 3:
 			default:
-				for (row = 0; row < 3; row += 1)
+				for (int row = 0; row < 3; row += 1)
       				d[row] = SD_NULL;
-				for (row = 3; row < row_size-3; row += 1)
+				for (int row = 3; row < row_size-3; row += 1)
 				{    // middle rows
       				if ( (s[row-2]-s[row] < mindif) && (s[row+2]-s[row] < mindif)
      					&& (abs(s[row-3]-s[row+3]) <= asym)  // added in v.0.7
@@ -377,14 +358,14 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 				}
-				for (row = row_size-3; row < row_size; row += 1)
+				for (int row = row_size-3; row < row_size; row += 1)
       				d[row] = SD_NULL;
 				break;
 
 			case 5: // v1.0
-				for (row = 0; row < 4; row += 1)
+				for (int row = 0; row < 4; row += 1)
       				d[row] = SD_NULL;
-				for (row = 4; row < row_size-4; row += 1)
+				for (int row = 4; row < row_size-4; row += 1)
 				{    // middle rows
       				if ( (s[row-3]-s[row] < mindif) && (s[row+3]-s[row] < mindif)
      					&& (abs(s[row-4]-s[row+4]) <= asym)  // added in v.0.7
@@ -393,14 +374,14 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 				}
-				for (row = row_size-4; row < row_size; row += 1)
+				for (int row = row_size-4; row < row_size; row += 1)
       				d[row] = SD_NULL;
 				break;
 
 			case 7:
-				for (row = 0; row < 5; row += 1)
+				for (int row = 0; row < 5; row += 1)
       				d[row] = SD_NULL;
-				for (row = 5; row < row_size-5; row += 1)
+				for (int row = 5; row < row_size-5; row += 1)
 				{    // middle rows
       				if ( (s[row-4]-s[row] < mindif) && (s[row+4]-s[row] < mindif)
      					&& (abs(s[row-5]-s[row+5]) <= asym)
@@ -409,14 +390,14 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 				}
-				for (row = row_size-5; row < row_size; row += 1)
+				for (int row = row_size-5; row < row_size; row += 1)
       				d[row] = SD_NULL;
 				break;
 
 			case 9:
-				for (row = 0; row < 6; row += 1)
+				for (int row = 0; row < 6; row += 1)
       				d[row] = SD_NULL;
-				for (row = 6; row < row_size-6; row += 1)
+				for (int row = 6; row < row_size-6; row += 1)
 				{    // middle rows
       				if ( (s[row-5]-s[row] < mindif) && (s[row+5]-s[row] < mindif)
      					&& (abs(s[row-6]-s[row+6]) <= asym)
@@ -425,14 +406,14 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 				}
-				for (row = row_size-6; row < row_size; row += 1)
+				for (int row = row_size-6; row < row_size; row += 1)
       				d[row] = SD_NULL;
 				break;
 
 			case 11:
-				for (row = 0; row < 7; row += 1)
+				for (int row = 0; row < 7; row += 1)
       				d[row] = SD_NULL;
-				for (row = 7; row < row_size-7; row += 1)
+				for (int row = 7; row < row_size-7; row += 1)
 				{    // middle rows
       				if ( (s[row-6]-s[row] < mindif) && (s[row+6]-s[row] < mindif)
      					&& (abs(s[row-7]-s[row+7]) <= asym)
@@ -441,14 +422,14 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 				}
-				for (row = row_size-7; row < row_size; row += 1)
+				for (int row = row_size-7; row < row_size; row += 1)
       				d[row] = SD_NULL;
 				break;
 
 			case 13:
-				for (row = 0; row < 8; row += 1)
+				for (int row = 0; row < 8; row += 1)
       				d[row] = SD_NULL;
-				for (row = 8; row < row_size-8; row += 1)
+				for (int row = 8; row < row_size-8; row += 1)
 				{    // middle rows
       				if ( (s[row-7]-s[row] < mindif) && (s[row+7]-s[row] < mindif)
      					&& (abs(s[row-8]-s[row+8]) <= asym)
@@ -457,14 +438,14 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 				}
-				for (row = row_size-8; row < row_size; row += 1)
+				for (int row = row_size-8; row < row_size; row += 1)
       				d[row] = SD_NULL;
 				break;
 
 			case 15:
-				for (row = 0; row < 9; row += 1)
+				for (int row = 0; row < 9; row += 1)
       				d[row] = SD_NULL;
-				for (row = 9; row < row_size-9; row += 1)
+				for (int row = 9; row < row_size-9; row += 1)
 				{    // middle rows
       				if ( (s[row-8]-s[row] < mindif) && (s[row+8]-s[row] < mindif)
      					&& (abs(s[row-9]-s[row+9]) <= asym)
@@ -473,7 +454,7 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
       				else
 						d[row] = SD_NULL;
 				}
-				for (row = row_size-9; row < row_size; row += 1)
+				for (int row = row_size-9; row < row_size; row += 1)
       				d[row] = SD_NULL;
 		}
       s += src_pitch;
@@ -483,23 +464,18 @@ void  get_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height,
 
 }
 //
-void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int height, BYTE *scratchdata, int mindif, int asym, int minwidth)
+static void  remove_min_extrems_plane(const BYTE * VS_RESTRICT s, ptrdiff_t src_pitch, int row_size, int height, BYTE * VS_RESTRICT d, int mindif, int asym, int minwidth)
 {
-  BYTE *d;
-  d = scratchdata;
-  int row, h;
-  int removewidth;
-
+  //d = scratchdata;
   if (minwidth <= 1)
     return;
-  else
-    removewidth = minwidth - 2;
 
+  int removewidth = minwidth - 2;
 
   if (mindif>0)
   { // black (low value) scratches
 
-    for (h = 0; h < height; h+=1)
+    for (int h = 0; h < height; h+=1)
 	{
 		switch (removewidth)
 		{
@@ -508,7 +484,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 			break;
 
 			case 1:
-			  for (row = 2; row < row_size-2; row += 1)
+			  for (int row = 2; row < row_size-2; row += 1)
 			  {    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-1]-s[row] > mindif) && (s[row+1]-s[row] > mindif)
      					&& (abs(s[row-2]-s[row+2]) <= asym)  // added in v.0.7
@@ -518,7 +494,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 			  break;
 
 			case 3:
-			  for (row = 3; row < row_size-3; row += 1)
+			  for (int row = 3; row < row_size-3; row += 1)
 			  {    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-2]-s[row] > mindif) && (s[row+2]-s[row] > mindif)
      					&& (abs(s[row-3]-s[row+3]) <= asym)  // added in v.0.7
@@ -528,7 +504,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 			  break;
 
 			case 5:
-			  for (row = 4; row < row_size-4; row += 1)
+			  for (int row = 4; row < row_size-4; row += 1)
 			  {    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-3]-s[row] > mindif) && (s[row+3]-s[row] > mindif)
      					&& (abs(s[row-4]-s[row+4]) <= asym)
@@ -538,7 +514,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 			  break;
 
 			case 7: // v1.0
-			  for (row = 5; row < row_size-5; row += 1)
+			  for (int row = 5; row < row_size-5; row += 1)
 			  {    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-4]-s[row] > mindif) && (s[row+4]-s[row] > mindif)
      					&& (abs(s[row-5]-s[row+5]) <= asym)
@@ -548,7 +524,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 			  break;
 
 			case 9: // v1.0
-			  for (row = 6; row < row_size-6; row += 1)
+			  for (int row = 6; row < row_size-6; row += 1)
 			  {    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-5]-s[row] > mindif) && (s[row+5]-s[row] > mindif)
      					&& (abs(s[row-6]-s[row+6]) <= asym)
@@ -558,7 +534,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 			  break;
 
 			case 11: // v1.0
-			  for (row = 7; row < row_size-7; row += 1)
+			  for (int row = 7; row < row_size-7; row += 1)
 			  {    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-6]-s[row] > mindif) && (s[row+6]-s[row] > mindif)
      					&& (abs(s[row-7]-s[row+7]) <= asym)
@@ -568,7 +544,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 			  break;
 
 			case 13: // v1.0
-			  for (row = 8; row < row_size-8; row += 1)
+			  for (int row = 8; row < row_size-8; row += 1)
 			  {    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-7]-s[row] > mindif) && (s[row+7]-s[row] > mindif)
      					&& (abs(s[row-8]-s[row+8]) <= asym)
@@ -578,7 +554,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 			  break;
 
 			case 15: // v1.0
-			  for (row = 9; row < row_size-9; row += 1)
+			  for (int row = 9; row < row_size-9; row += 1)
 			  {    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-8]-s[row] > mindif) && (s[row+8]-s[row] > mindif)
      					&& (abs(s[row-9]-s[row+9]) <= asym)
@@ -596,7 +572,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
   else
   {    // white (high value) scratches
 
-    for (h = 0; h < height; h+=1)
+    for (int h = 0; h < height; h+=1)
 	{
 		switch (removewidth)
 		{
@@ -605,7 +581,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 			break;
 
 			case 1:
-				for (row = 2; row < row_size-2; row += 1)
+				for (int row = 2; row < row_size-2; row += 1)
 				{    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-1]-s[row] < mindif) && (s[row+1]-s[row] < mindif)
      					&& (abs(s[row-2]-s[row+2]) <= asym)  // added in v.0.7
@@ -615,7 +591,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 			break;
 
 			case 3:
-				for (row = 3; row < row_size-3; row += 1)
+				for (int row = 3; row < row_size-3; row += 1)
 				{    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-2]-s[row] < mindif) && (s[row+2]-s[row] < mindif)
      					&& (abs(s[row-3]-s[row+3]) <= asym)  // added in v.0.7
@@ -626,7 +602,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 
 
 			case 5: // v1.0
-				for (row = 4; row < row_size-4; row += 1)
+				for (int row = 4; row < row_size-4; row += 1)
 				{    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-3]-s[row] < mindif) && (s[row+3]-s[row] < mindif)
      					&& (abs(s[row-4]-s[row+4]) <= asym)  // added in v.0.7
@@ -636,7 +612,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 				break;
 
 			case 7:
-				for (row = 5; row < row_size-5; row += 1)
+				for (int row = 5; row < row_size-5; row += 1)
 				{    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-4]-s[row] < mindif) && (s[row+4]-s[row] < mindif)
      					&& (abs(s[row-5]-s[row+5]) <= asym)
@@ -646,7 +622,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 				break;
 
 			case 9:
-				for (row = 6; row < row_size-6; row += 1)
+				for (int row = 6; row < row_size-6; row += 1)
 				{    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-5]-s[row] < mindif) && (s[row+5]-s[row] < mindif)
      					&& (abs(s[row-6]-s[row+6]) <= asym)
@@ -656,7 +632,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 				break;
 
 			case 11:
-				for (row = 7; row < row_size-7; row += 1)
+				for (int row = 7; row < row_size-7; row += 1)
 				{    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-6]-s[row] < mindif) && (s[row+6]-s[row] < mindif)
      					&& (abs(s[row-7]-s[row+7]) <= asym)
@@ -666,7 +642,7 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 				break;
 
 			case 13:
-				for (row = 8; row < row_size-8; row += 1)
+				for (int row = 8; row < row_size-8; row += 1)
 				{    // middle rows
       				if ( d[row] == SD_EXTREM && (s[row-7]-s[row] < mindif) && (s[row+7]-s[row] < mindif)
      					&& (abs(s[row-8]-s[row+8]) <= asym)
@@ -684,24 +660,15 @@ void  remove_min_extrems_plane(const BYTE * s, int src_pitch, int row_size, int 
 
 //
 //
-void  close_gaps(BYTE *scratchdata, int rows, int height, int maxgap)
-{
-  BYTE *d;
-  d = scratchdata;    // copy pointer
-  int r, h, j;
-  long rh;
+static void  close_gaps(BYTE * VS_RESTRICT d, int rows, int height, int maxgap) {
+  // d = scratchdata;    // copy pointer
 
-  for (h = maxgap; h < height; h+=1)
-  {
-     for (r = 0; r < rows; r += 1)
-	 {
-     	rh = r+h*rows;
-        if (d[rh] == SD_EXTREM)
-		{       // found first point of candidate
-        	for (j=1; j<maxgap; j+=1)
-			{
+  for (int h = maxgap; h < height; h++) {
+     for (int r = 0; r < rows; r++) {
+     	int rh = r+h*rows;
+        if (d[rh] == SD_EXTREM) {       // found first point of candidate
+        	for (int j=1; j<maxgap; j++)
         		d[rh-j*rows] = SD_EXTREM;    // expand to previous lines in range
-        	}
      	}
      }
    }
@@ -709,30 +676,23 @@ void  close_gaps(BYTE *scratchdata, int rows, int height, int maxgap)
 //
 //
 //
-void  test_scratches(BYTE *scratchdata, int rows, int height, int maxwidth,int minlens, int maxlens, float maxangle)
+static void  test_scratches(BYTE * VS_RESTRICT d, int rows, int height, int maxwidth, int minlens, int maxlens, float maxangle)
 {
-  BYTE *d;
-  d = scratchdata;    // copy pointer
-  int r, h;
-  long rh, rhc, rhcnew;
+  //d = scratchdata;    // copy pointer
+	int rhcnew = 0;
   int nrow, ntotal;
-  int len;
-  int maskold, masknew, pass;
+  int len = 0;
+  BYTE maskold, masknew;
 
-  len = 0;
-  rhcnew = 0;
-
-
-
-  for (h = 0; h < height; h+=1)
+  for (int h = 0; h < height; h+=1)
   {
-     for (r = 2; r < rows-2; r += 1)
+     for (int r = 2; r < rows-2; r += 1)
 	 {
-        rh=r+h*rows;
+        int rh=r+h*rows;
         if (d[rh]==SD_EXTREM)
 		{       // found first point of candidate
 
-      	    for (pass =1; pass <=2; pass +=1)
+      	    for (int pass =1; pass <=2; pass +=1)
 			{	// two passes
 
       	        if ( pass==1)
@@ -749,7 +709,7 @@ void  test_scratches(BYTE *scratchdata, int rows, int height, int maxwidth,int m
       	        }
 
       	   		ntotal=0;              // total number of good points in candidate
-      	   		rhc = rh+1;             // centered to scratch for maxwidth=3
+      	   		int rhc = rh+1;             // centered to scratch for maxwidth=3
 
       	   	  for (len=0; len< height-h; len+=1)
 			  {     // cycle along scratch
@@ -809,15 +769,11 @@ void  test_scratches(BYTE *scratchdata, int rows, int height, int maxwidth,int m
 //
 //
 //
-void  mark_scratches_plane(BYTE * dest_data, int dest_pitch, int row_size, int height, BYTE *scratchdata, int mask, int value)
-{
- int row, h;
-
-    for (h = 0; h < height; h+=1)
-	{
-      for (row = 0; row < row_size; row += 1)
-	  {
-      	   if (scratchdata[row]==mask) dest_data[row] = value;
+static void  mark_scratches_plane(BYTE * VS_RESTRICT dest_data, ptrdiff_t dest_pitch, ptrdiff_t row_size, int height, BYTE * VS_RESTRICT scratchdata, BYTE mask, BYTE value) {
+    for (int h = 0; h < height; h++) {
+      for (int row = 0; row < row_size; row++)  {
+      	   if (scratchdata[row] == mask)
+			   dest_data[row] = value;
       }
       dest_data += dest_pitch;
       scratchdata += row_size;
@@ -827,27 +783,18 @@ void  mark_scratches_plane(BYTE * dest_data, int dest_pitch, int row_size, int h
 //
 //
 //
-void remove_scratches_plane(const BYTE * src_data, int src_pitch, BYTE * dest_data, int dest_pitch,
-	  const BYTE * blured_data, int blured_pitch, int row_size, int height, BYTE *scratchdata,
+static void remove_scratches_plane(const BYTE * VS_RESTRICT src_data, ptrdiff_t src_pitch, BYTE * VS_RESTRICT dest_data, ptrdiff_t dest_pitch,
+	  const BYTE *VS_RESTRICT blured_data, ptrdiff_t blured_pitch, int row_size, int height, BYTE * VS_RESTRICT d,
 	  int mindif1, int maxwidth, int keep100, int border)
 {
-  BYTE *d;
-  d = scratchdata;
-//  int h, row;
-//  int background,blured_background;
-  int i;
+  //d = scratchdata;
   int rad = maxwidth/2;  // 3/2=1
-  int left, rowc;
-
-
   int keep256 = (keep100*256)/100; // to norm 256
-
   int div2rad2 = (256*256)/(2*rad+2); // to div by 2*rad+2, replace division by mult and shift
-
 
     for (int h=0; h<height; h+=1)
 	{
-		left = 0; // v.0.9.1
+		int left = 0; // v.0.9.1
        for (int row=rad+border+2; row<row_size-rad-border-2; row+=1)
 	   {
 
@@ -855,22 +802,22 @@ void remove_scratches_plane(const BYTE * src_data, int src_pitch, BYTE * dest_da
        	       left = row;                                           // memo
        	   if (left!=0 && !!(d[row]&SD_GOOD) && !(d[row+1]&SD_GOOD) )
 		   {        // the scratch right
-       	   	rowc = (left+row)/2;                                // the scratch center
+       	   	int rowc = (left+row)/2;                                // the scratch center
 
-       	           for (i=-rad; i<=rad; i +=1)
+       	           for (int i=-rad; i<=rad; i +=1)
 				   {          // in scratch
 					int newdata1 = ((keep256*(src_data[rowc+i] + blured_data[rowc-rad-border-1] - blured_data[rowc+i])) + (256-keep256)*src_data[rowc-rad-border-1])/256;
 					int newdata2 = ((keep256*(src_data[rowc+i] + blured_data[rowc+rad+border+1] - blured_data[rowc+i])) + (256-keep256)*src_data[rowc+rad+border+1])/256;
 					int newdata = ((newdata1*(rad-i+1) + newdata2*(rad+i+1))*div2rad2)/(256*256); // weighted left and right - v1.1
        	           	 dest_data[rowc+i] = std::min(255,std::max(0, newdata)); // clipped in v.0.6
        	           }
-       	           for (i=-rad-border; i<-rad; i +=1)
+       	           for (int i=-rad-border; i<-rad; i +=1)
 				   {         // at left border
 					int newdata = src_data[rowc+i] + blured_data[rowc-rad-border-1] - blured_data[rowc+i]; // fix v.0.9.1
 					newdata = (keep256*newdata + (256-keep256)*src_data[rowc-rad-border-1])/256; //v1.1
        	           	 dest_data[rowc+i] = std::min(255,std::max(0,newdata)); // clipped in v.0.6
        	           }
-       	           for (i=rad+1; i<=rad+border; i +=1)
+       	           for (int i=rad+1; i<=rad+border; i +=1)
 				   {         // at right border
 					int newdata = src_data[rowc+i] + blured_data[rowc+rad+border+1] - blured_data[rowc+i]; // fix v.0.9.1
 					newdata = (keep256*newdata + (256-keep256)*src_data[rowc+rad+border+1])/256; // v.1.1
@@ -887,14 +834,12 @@ void remove_scratches_plane(const BYTE * src_data, int src_pitch, BYTE * dest_da
 
 }
 
-void DeScratchShared::DeScratch_pass (const BYTE * srcp, int src_pitch, const BYTE * bluredp,int blured_pitch,
-			BYTE * destp, int dest_pitch, int row_sizep, int heightp,  int hscale, int mindifp, int asym)
+void DeScratchShared::DeScratch_pass (const BYTE * VS_RESTRICT srcp, ptrdiff_t src_pitch, const BYTE * VS_RESTRICT bluredp, ptrdiff_t blured_pitch,
+			BYTE * VS_RESTRICT destp, ptrdiff_t dest_pitch, int row_sizep, int heightp,  int hscale, int mindifp, int asym)
 {
 //		pass for current plane and current sign
-  int markvalue;
-
     if (row_sizep < maxwidth +3)
-    return;  //v.1.0
+		return;  //v.1.0
 
 	get_extrems_plane(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym, maxwidth);
 	if (minwidth>1) remove_min_extrems_plane(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym, minwidth);
@@ -903,8 +848,8 @@ void DeScratchShared::DeScratch_pass (const BYTE * srcp, int src_pitch, const BY
 
 	if (mark)
 	{
-       if (mindifp >0) markvalue=0;
-       else markvalue=255;
+	 
+		int markvalue = (mindifp > 0) ? 0 : 255;
 	   mark_scratches_plane(destp, dest_pitch, row_sizep, heightp, scratchdata, SD_GOOD, markvalue);
        markvalue=127;
        mark_scratches_plane(destp, dest_pitch, row_sizep, heightp, scratchdata, SD_REJECT, markvalue);
@@ -1095,11 +1040,11 @@ static const VSFrame *VS_CC deScratchGetFrame(int n, int activationReason, void 
 		VSFrame *dest = vsapi->newVideoFrame(vsapi->getVideoFrameFormat(src), d->width, d->height, src, core);
 
 		const BYTE *bluredp;
-		int blured_pitch;
+		ptrdiff_t blured_pitch;
 		BYTE *destp;
-		int dest_pitch;
+		ptrdiff_t dest_pitch;
 		const BYTE *srcp;
-		int src_pitch;
+		ptrdiff_t src_pitch;
 		int row_size;
 		int heightp;
 		int wleftp;
@@ -1174,8 +1119,6 @@ static void VS_CC deScratchFree(void *instanceData, VSCore *core, const VSAPI *v
 	DeScratchVSData *d = (DeScratchVSData *)instanceData;
 	vsapi->freeNode(d->node);
 	vsapi->freeNode(d->blured_clip);
-	free(d->buf);
-	free(d->scratchdata);
 	delete d;
 }
 
