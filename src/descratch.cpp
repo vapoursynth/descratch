@@ -37,8 +37,11 @@ The plugin works only in YV12.
 */
 
 #include <avisynth.h>
+#include <VapourSynth4.h>
+#include <VSHelper4.h>
 #include <cstdlib>
 #include <algorithm>
+#include <memory>
 
 
 #define SD_NULL 0
@@ -52,14 +55,7 @@ The plugin works only in YV12.
 #define MODE_HIGH 2
 #define MODE_ALL 3
 
-
-class DeScratch : public GenericVideoFilter {
-  //  defines the name of your filter class.
-  // This name is only used internally, and does not affect the name of your filter or similar.
-  // This filter extends GenericVideoFilter, which incorporates basic functionality.
-  // All functions present in the filter must also be present here.
-
-
+struct DeScratchSharedData {
 	int mindif;
 	int asym;
 	int maxgap;
@@ -79,14 +75,17 @@ class DeScratch : public GenericVideoFilter {
 	int wleft;
 	int wright;
 
-	BYTE * scratchdata;
-//	PClip down_clip;
-    PClip blured_clip;
+	BYTE *scratchdata;
 
 	BYTE *buf;
 	int buf_pitch;
 	int width;
 	int height;
+};
+
+
+class DeScratch : public GenericVideoFilter, private DeScratchSharedData {
+    PClip blured_clip;
 
 void DeScratch_pass(const BYTE * srcp, int src_pitch, const BYTE * bluredp,int blured_pitch,
 			BYTE * destp, int dest_pitch, int row_sizep, int heightp, int hscale, int mindifp, int asym);
@@ -115,14 +114,10 @@ public:
 DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _maxwidth,
 					 int _minlen, int _maxlen, float _maxangle, int _blurlen, int _keep, int _border,
 					 int _modeY, int _modeU, int _modeV, int _mindifUV, bool _mark, int _minwidth, int _wleft, int _wright, IScriptEnvironment* env) :
-	GenericVideoFilter(_child), mindif(_mindif), asym(_asym), maxgap(_maxgap), maxwidth(_maxwidth),
-		minlen(_minlen), maxlen(_maxlen), maxangle(_maxangle), blurlen(_blurlen), keep(_keep), border(_border),
-		modeY(_modeY), modeU(_modeU), modeV(_modeV), mindifUV(_mindifUV), mark(_mark), minwidth(_minwidth), wleft(_wleft), wright(_wright)
+	GenericVideoFilter(_child), DeScratchSharedData{ _mindif, _asym , _maxgap, _maxwidth,
+		_minlen, _maxlen, _maxangle, _blurlen, _keep, _border,
+		_modeY, _modeU, _modeV, _mindifUV, _mark, _minwidth, _wleft, _wright }
 	{
-  // This is the implementation of the constructor.
-  // The child clip (source clip) is inherited by the GenericVideoFilter,
-  //  where the following variables gets defined:
-
         if ( mindif<=0 )
            env->ThrowError("Descratch: mindif must be positive!");
         if ( asym<0 )
@@ -1092,3 +1087,222 @@ extern "C" __declspec(dllexport) const char* __stdcall AvisynthPluginInit3(IScri
     // A freeform name of the plugin.
 }
 
+
+
+struct DeScratchVSData : public DeScratchSharedData {
+	VSNode *node;
+	VSNode *blured_clip;
+};
+
+
+static const VSFrame *VS_CC deScratchGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+	DeScratchVSData *d = (DeScratchVSData *)instanceData;
+
+	if (activationReason == arInitial) {
+		vsapi->requestFrameFilter(n, d->node, frameCtx);
+		vsapi->requestFrameFilter(n, d->blured_clip, frameCtx);
+	} else if (activationReason == arAllFramesReady) {
+		const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+		const VSFrame *blured = vsapi->getFrameFilter(n, d->blured_clip, frameCtx);
+
+		PVideoFrame dest = env->NewVideoFrame(vi);
+
+		int sign;
+		int plane;
+
+		plane = PLANAR_Y;
+		const BYTE *bluredp = blured->GetReadPtr(plane);
+		int blured_pitch = blured->GetPitch(plane);
+		BYTE *destp = dest->GetWritePtr(plane);
+		int dest_pitch = dest->GetPitch(plane);
+		const BYTE *srcp = src->GetReadPtr(plane);
+		int src_pitch = src->GetPitch(plane);
+		int row_size = src->GetRowSize(plane);
+		int heightp = src->GetHeight(plane);
+		int wleftp = wleft * row_size / width;
+		int wrightp = wright * row_size / width;
+
+		// remove scratches  for every plane and sign independently
+		if (modeY == MODE_ALL) {
+			env->BitBlt(buf, buf_pitch, srcp, src_pitch, row_size, heightp);
+			DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, buf + wleftp, buf_pitch, wrightp - wleftp, heightp, height / heightp, mindif, asym);
+			env->BitBlt(destp, dest_pitch, buf, buf_pitch, row_size, heightp);
+			DeScratch_pass(buf + wleftp, buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, (height / heightp), (-mindif), asym);
+		} else {
+			env->BitBlt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
+			if (modeY == MODE_LOW || modeY == MODE_HIGH) {
+				sign = (modeY == MODE_LOW) ? 1 : -1;
+				DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, height / heightp, sign * mindif, asym);
+			}
+		}
+
+
+		plane = PLANAR_U;
+		bluredp = blured->GetReadPtr(plane);
+		blured_pitch = blured->GetPitch(plane);
+		destp = dest->GetWritePtr(plane);
+		dest_pitch = dest->GetPitch(plane);
+		srcp = src->GetReadPtr(plane);
+		src_pitch = src->GetPitch(plane);
+		row_size = src->GetRowSize(plane);
+		heightp = src->GetHeight(plane);
+		wleftp = wleft * row_size / width;
+		wrightp = wright * row_size / width;
+
+		if (modeU == MODE_ALL) {
+			env->BitBlt(buf, buf_pitch, srcp, src_pitch, row_size, heightp);
+			DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, buf + wleftp, buf_pitch, wrightp - wleftp, heightp, height / heightp, mindifUV, asym);
+			env->BitBlt(destp, dest_pitch, buf, buf_pitch, row_size, heightp);
+			DeScratch_pass(buf + wleftp, buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, height / heightp, -mindifUV, asym);
+		} else {
+			env->BitBlt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
+			if (modeU == MODE_LOW || modeU == MODE_HIGH) {
+				sign = (modeU == MODE_LOW) ? 1 : -1;
+				DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, height / heightp, sign * mindifUV, asym);
+			}
+		}
+
+
+		plane = PLANAR_V;
+		bluredp = blured->GetReadPtr(plane);
+		blured_pitch = blured->GetPitch(plane);
+		destp = dest->GetWritePtr(plane);
+		dest_pitch = dest->GetPitch(plane);
+		srcp = src->GetReadPtr(plane);
+		src_pitch = src->GetPitch(plane);
+		row_size = src->GetRowSize(plane);
+		heightp = src->GetHeight(plane);
+		wleftp = wleft * row_size / width;
+		wrightp = wright * row_size / width;
+
+		if (modeV == MODE_ALL) {
+			env->BitBlt(buf, buf_pitch, srcp, src_pitch, row_size, heightp);
+			DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, buf + wleftp, buf_pitch, wrightp - wleftp, heightp, height / heightp, mindifUV, asym);
+			env->BitBlt(destp, dest_pitch, buf, buf_pitch, row_size, heightp);
+			DeScratch_pass(buf + wleftp, buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, height / heightp, -mindifUV, asym);
+		} else {
+			env->BitBlt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
+			if (modeV == MODE_LOW || modeV == MODE_HIGH) {
+				sign = (modeV == MODE_LOW) ? 1 : -1;
+				DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, height / heightp, sign * mindifUV, asym);
+			}
+		}
+
+		return dest;    // return computed frame
+	}
+
+	return nullptr;
+}
+
+static void VS_CC deScratchFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+	DeScratchVSData *d = (DeScratchVSData *)instanceData;
+	vsapi->freeNode(d->node);
+	vsapi->freeNode(d->blured_clip);
+	delete d;
+}
+
+#define RETERROR(x) do { vsapi->mapSetError(out, (x)); 	vsapi->freeNode(d->node); vsapi->freeNode(d->blured_clip); return; } while (0)
+
+static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+	std::unique_ptr<DeScratchVSData> d(new DeScratchVSData());
+
+	d->mindif = vsapi->mapGetIntSaturated(in, "mindif", 0, nullptr);
+	d->asym = vsapi->mapGetIntSaturated(in, "asym", 0, nullptr);
+	d->maxgap = vsapi->mapGetIntSaturated(in, "maxgap", 0, nullptr);
+	d->maxwidth = vsapi->mapGetIntSaturated(in, "maxwidth", 0, nullptr);
+	d->minlen = vsapi->mapGetIntSaturated(in, "minlen", 0, nullptr);
+	d->maxlen = vsapi->mapGetIntSaturated(in, "maxlen", 0, nullptr);
+	d->maxangle = vsapi->mapGetFloatSaturated(in, "maxangle", 0, nullptr);
+	d->blurlen = vsapi->mapGetIntSaturated(in, "blurlen", 0, nullptr);
+	d->keep = vsapi->mapGetIntSaturated(in, "keep", 0, nullptr);
+	d->border = vsapi->mapGetIntSaturated(in, "border", 0, nullptr);
+	d->modeY = vsapi->mapGetIntSaturated(in, "modeY", 0, nullptr);
+	d->modeU = vsapi->mapGetIntSaturated(in, "modeU", 0, nullptr);
+	d->modeV = vsapi->mapGetIntSaturated(in, "modeV", 0, nullptr);
+	d->mindifUV = vsapi->mapGetIntSaturated(in, "mindifUV", 0, nullptr);
+	d->mark = vsapi->mapGetIntSaturated(in, "mark", 0, nullptr);
+	d->minwidth = vsapi->mapGetIntSaturated(in, "minwidth", 0, nullptr);
+	d->wleft = vsapi->mapGetIntSaturated(in, "left", 0, nullptr);
+	d->wright = vsapi->mapGetIntSaturated(in, "right", 0, nullptr);
+	
+	if (d->mindif <= 0)
+		RETERROR("Descratch: mindif must be positive!");
+	if (d->asym < 0)
+		RETERROR("Descratch: asym must be not negative!");
+	if (d->mindifUV < 0)
+		RETERROR("Descratch: mindifUV must not be negative!");
+	else if (d->mindifUV == 0)
+		d->mindifUV = d->mindif;
+	if ((d->maxgap < 0) || (d->maxgap > 255))
+		RETERROR("Descratch: maxgap must be >=0 and <=256!");
+	if (!(d->maxwidth % 2) || (d->maxwidth < 1) || (d->maxwidth > 15))
+		RETERROR("Descratch: maxwidth must be odd from 1 to 15!"); // v.1.0
+	if ((d->minlen <= 0))
+		RETERROR("Descratch: minlen must be > 0!");
+	if ((d->maxlen <= 0))
+		RETERROR("Descratch: maxlen must be > 0!");
+	if ((d->maxangle < 0) || (d->maxangle > 90))
+		RETERROR("Descratch: maxangle must be from 0 to 90!");
+	if ((d->blurlen < 0) || (d->blurlen > 200))
+		RETERROR("Descratch: blurlen must be from 0 to 200!"); // v1.0
+	if ((d->keep < 0) || (d->keep > 100))
+		RETERROR("Descratch: keep must be from 0 to 100!");
+	if ((d->border < 0) || (d->border > 5))
+		RETERROR("Descratch: border must be from 0 to 5!");
+	if (d->modeY < 0 || d->modeY>3 || d->modeU < 0 || d->modeU>3 || d->modeV < 0 || d->modeV>3)
+		RETERROR("Descratch: modeY, modeU, modeV must be from 0 to 3!");
+	if (d->minwidth > d->maxwidth)
+		RETERROR("Descratch: minwidth must be not above maxwidth!");
+	if (!(d->minwidth % 2) || (d->minwidth < 1) || (d->minwidth > 15))
+		RETERROR("Descratch: minwidth must be odd from 1 to 15!"); // v.1.0
+
+	d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
+	const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
+
+	if (!vsh::isConstantVideoFormat(vi) || (vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core) != pfYUV420P8))
+		RETERROR("Descratch: Video must be constant format YV12!");
+
+	d->width = vi->width;
+	d->height = vi->height;
+	d->buf_pitch = d->width + 16 - d->width % 16;
+
+	// check working window limits - v.1.0
+	if (d->wleft < 0)
+		d->wleft = 0;
+	d->wleft = d->wleft - d->wleft % 2;
+	if (d->wright > d->width)
+		d->wright = d->width;
+	d->wright = d->wright - d->wright % 2;
+	if (d->wleft >= d->wright)
+		RETERROR("Descratch: must be: left < right <= width!");
+
+	int down_height = (vi->height) / (1 + d->blurlen);
+	if (down_height % 2) down_height -= 1;
+
+	VSMap *args1 = vsapi->createMap();
+	vsapi->mapSetNode(args1, "clip", d->node, maAppend);
+	vsapi->mapSetInt(args1, "width", d->width, maAppend);
+	vsapi->mapSetInt(args1, "height", down_height, maAppend);
+	VSMap *args2 = vsapi->invoke(vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core), "Bilinear", args1);
+	vsapi->freeMap(args1);
+	vsapi->mapSetInt(args2, "width", d->width, maAppend);
+	vsapi->mapSetInt(args2, "height", d->height, maAppend);
+	VSMap *result = vsapi->invoke(vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core), "Bicubic", args1);
+	vsapi->freeMap(args2);
+	d->blured_clip = vsapi->mapGetNode(result, "clip", 0, nullptr);
+	vsapi->freeMap(result);
+
+	d->scratchdata = (BYTE *)malloc(vi->height * vi->width);
+	d->buf = (BYTE *)malloc(d->height * d->buf_pitch);
+
+	VSFilterDependency deps[] = { {d->node, rpStrictSpatial}, {d->blured_clip, rpStrictSpatial} }; /* Depending the the request patterns you may want to change this */
+	vsapi->createVideoFilter(out, "DeScratch", vi, deScratchGetFrame, deScratchFree, fmParallelRequests, deps, 2, d.release(), core);
+}
+
+//////////////////////////////////////////
+// Init
+
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+	vspapi->configPlugin("com.vapoursynth.descratch", "descratch", "DeScratch for Vapoursynth and friends", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
+	vspapi->registerFunction("descratch", "clip:vnode;mindif:integer;asym:integer;maxgap:integer;maxwidth:integer;minlen:integer;maxlen:integer;maxangle:float;blurlen:integer;keep:integer;border:integer;modeY:integer;modeU:integer;modeV:integer;mindifUV:integer;mark:integer;minwidth:integer;left:integer;right:integer;", "clip:vnode;", deScratchCreate, nullptr, plugin);
+}

@@ -72,19 +72,19 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <IncludePath>C:\Program Files\VapourSynth\sdk\include\vapoursynth;C:\Program Files %28x86%29\AviSynth+\FilterSDK\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files %28x86%29\AviSynth+\FilterSDK\lib\x86;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IncludePath>C:\Program Files\VapourSynth\sdk\include\vapoursynth;C:\Program Files %28x86%29\AviSynth+\FilterSDK\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files %28x86%29\AviSynth+\FilterSDK\lib\x86;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>C:\Program Files\VapourSynth\sdk\include\vapoursynth;C:\Program Files %28x86%29\AviSynth+\FilterSDK\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files %28x86%29\AviSynth+\FilterSDK\lib\x64;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>C:\Program Files\VapourSynth\sdk\include\vapoursynth;C:\Program Files %28x86%29\AviSynth+\FilterSDK\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files %28x86%29\AviSynth+\FilterSDK\lib\x64;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
