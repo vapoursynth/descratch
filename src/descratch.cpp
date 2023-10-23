@@ -1183,26 +1183,52 @@ static void VS_CC deScratchFree(void *instanceData, VSCore *core, const VSAPI *v
 
 static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
 	std::unique_ptr<DeScratchVSData> d(new DeScratchVSData());
-
-	d->mindif = vsapi->mapGetIntSaturated(in, "mindif", 0, nullptr);
-	d->asym = vsapi->mapGetIntSaturated(in, "asym", 0, nullptr);
-	d->maxgap = vsapi->mapGetIntSaturated(in, "maxgap", 0, nullptr);
-	d->maxwidth = vsapi->mapGetIntSaturated(in, "maxwidth", 0, nullptr);
-	d->minlen = vsapi->mapGetIntSaturated(in, "minlen", 0, nullptr);
-	d->maxlen = vsapi->mapGetIntSaturated(in, "maxlen", 0, nullptr);
-	d->maxangle = vsapi->mapGetFloatSaturated(in, "maxangle", 0, nullptr);
-	d->blurlen = vsapi->mapGetIntSaturated(in, "blurlen", 0, nullptr);
-	d->keep = vsapi->mapGetIntSaturated(in, "keep", 0, nullptr);
-	d->border = vsapi->mapGetIntSaturated(in, "border", 0, nullptr);
-	d->modeY = vsapi->mapGetIntSaturated(in, "modeY", 0, nullptr);
+	int err;
+	d->mindif = vsapi->mapGetIntSaturated(in, "mindif", 0, &err);
+	if (err)
+		d->mindif = 5;
+	d->asym = vsapi->mapGetIntSaturated(in, "asym", 0, &err);
+	if (err)
+		d->asym = 10;
+	d->maxgap = vsapi->mapGetIntSaturated(in, "maxgap", 0, &err);
+	if (err)
+		d->maxgap = 2;
+	d->maxwidth = vsapi->mapGetIntSaturated(in, "maxwidth", 0, &err);
+	if (err)
+		d->maxwidth = 3;
+	d->minlen = vsapi->mapGetIntSaturated(in, "minlen", 0, &err);
+	if (err)
+		d->minlen = 100;
+	d->maxlen = vsapi->mapGetIntSaturated(in, "maxlen", 0, &err);
+	if (err)
+		d->minlen = 2048;
+	d->maxangle = vsapi->mapGetFloatSaturated(in, "maxangle", 0, &err);
+	if (err)
+		d->maxangle = 5.0f;
+	d->blurlen = vsapi->mapGetIntSaturated(in, "blurlen", 0, &err);
+	if (err)
+		d->blurlen = 15;
+	d->keep = vsapi->mapGetIntSaturated(in, "keep", 0, &err);
+	if (err)
+		d->keep = 100;
+	d->border = vsapi->mapGetIntSaturated(in, "border", 0, &err);
+	if (err)
+		d->border = 2;
+	d->modeY = vsapi->mapGetIntSaturated(in, "modeY", 0, &err);
+	if (err)
+		d->modeY = 1;
 	d->modeU = vsapi->mapGetIntSaturated(in, "modeU", 0, nullptr);
 	d->modeV = vsapi->mapGetIntSaturated(in, "modeV", 0, nullptr);
 	d->mindifUV = vsapi->mapGetIntSaturated(in, "mindifUV", 0, nullptr);
-	d->mark = vsapi->mapGetIntSaturated(in, "mark", 0, nullptr);
-	d->minwidth = vsapi->mapGetIntSaturated(in, "minwidth", 0, nullptr);
+	d->mark = !!vsapi->mapGetIntSaturated(in, "mark", 0, nullptr);
+	d->minwidth = vsapi->mapGetIntSaturated(in, "minwidth", 0, &err);
+	if (err)
+		d->minwidth = 1;
 	d->wleft = vsapi->mapGetIntSaturated(in, "left", 0, nullptr);
-	d->wright = vsapi->mapGetIntSaturated(in, "right", 0, nullptr);
-	
+	d->wright = vsapi->mapGetIntSaturated(in, "right", 0, &err);
+	if (err)
+		d->wright = 4096;
+
 	if (d->mindif <= 0)
 		RETERROR("Descratch: mindif must be positive!");
 	if (d->asym < 0)
