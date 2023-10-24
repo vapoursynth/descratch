@@ -273,12 +273,7 @@ static void  remove_min_extrems_plane(const BYTE * VS_RESTRICT s, ptrdiff_t src_
   }
 }
 
-
-//
-//
 static void  close_gaps(BYTE * VS_RESTRICT d, int rows, int height, int maxgap) {
-  // d = scratchdata;    // copy pointer
-
   for (int h = maxgap; h < height; h++) {
      for (int r = 0; r < rows; r++) {
      	int rh = r+h*rows;
@@ -289,14 +284,11 @@ static void  close_gaps(BYTE * VS_RESTRICT d, int rows, int height, int maxgap) 
      }
    }
 }
-//
-//
-// fixme, weird variable uses that can probably be improved
+
+// fixme, weird variable scoping but probably not worth the effort to improve further
 static void  test_scratches(BYTE * VS_RESTRICT d, int rows, int height, int maxwidth, int minlens, int maxlens, float maxangle)
 {
-  //d = scratchdata;    // copy pointer
 	int rhcnew = 0;
-  int nrow, ntotal;
   int len = 0;
   BYTE maskold, masknew;
 
@@ -324,12 +316,11 @@ static void  test_scratches(BYTE * VS_RESTRICT d, int rows, int height, int maxw
       	          else { masknew = SD_REJECT; }   // Bad scratch, reject
       	        }
 
-      	   		ntotal=0;              // total number of good points in candidate
       	   		int rhc = rh+1;             // centered to scratch for maxwidth=3
 
       	   	  for (len=0; len< height-h; len+=1)
 			  {     // cycle along scratch
-      	   	         nrow =0;  // number good points in row
+      	   	         int nrow =0;  // number good points in row
 					 if (maxwidth >= 3) // added in v.0.9
 					 {
       	   				 if(d[rhc-2] ==maskold)
@@ -366,7 +357,6 @@ static void  test_scratches(BYTE * VS_RESTRICT d, int rows, int height, int maxw
       	   	         // end of points tests, check result for row:
       	   	         if ( (nrow>0) && (maxwidth+len*maxangle/57 > abs(rhcnew%rows-r)) )// check gap, and angle
 					 {
-      	   	             ntotal=ntotal+nrow;
       	   	             rhc = rhcnew+rows;           // new center for next row test
       	   	         }
 					 else
@@ -392,12 +382,10 @@ static void  mark_scratches_plane(BYTE * VS_RESTRICT dest_data, ptrdiff_t dest_p
     }
 }
 
-// fixme, weird variable uses here too
 static void remove_scratches_plane(const BYTE * VS_RESTRICT src_data, ptrdiff_t src_pitch, BYTE * VS_RESTRICT dest_data, ptrdiff_t dest_pitch,
 	  const BYTE *VS_RESTRICT blured_data, ptrdiff_t blured_pitch, int row_size, int height, BYTE * VS_RESTRICT d,
 	  int mindif1, int maxwidth, int keep100, int border)
 {
-  //d = scratchdata;
   int rad = maxwidth/2;  // 3/2=1
   int keep256 = (keep100*256)/100; // to norm 256
   int div2rad2 = (256*256)/(2*rad+2); // to div by 2*rad+2, replace division by mult and shift
@@ -483,11 +471,8 @@ void DeScratchShared::DeScratch_pass (const BYTE * VS_RESTRICT srcp, ptrdiff_t s
 
 	if (mark)
 	{
-	   // fixme, weird variable use
-		int markvalue = (mindifp > 0) ? 0 : 255;
-	   mark_scratches_plane(destp, dest_pitch, row_sizep, heightp, scratchdata, SD_GOOD, markvalue);
-       markvalue=127;
-       mark_scratches_plane(destp, dest_pitch, row_sizep, heightp, scratchdata, SD_REJECT, markvalue);
+	   mark_scratches_plane(destp, dest_pitch, row_sizep, heightp, scratchdata, SD_GOOD, (mindifp > 0) ? 0 : 255);
+       mark_scratches_plane(destp, dest_pitch, row_sizep, heightp, scratchdata, SD_REJECT, 127);
 	}
 	else
 	{
