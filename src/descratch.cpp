@@ -42,6 +42,7 @@ The plugin works only in YV12.
 #include <cstdlib>
 #include <algorithm>
 #include <memory>
+#include <cassert>
 
 
 constexpr BYTE SD_NULL = 0;
@@ -173,149 +174,32 @@ DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _max
 	  buf = (BYTE *)malloc(height*buf_pitch);
 }
 
-//
-//
-static void  get_extrems_plane(const BYTE * VS_RESTRICT s, ptrdiff_t src_pitch, int row_size, int height, BYTE * VS_RESTRICT d, int mindif, int asym, int maxwidth)
+template<int maxwidth>
+static void  get_extrems_plane(const BYTE * VS_RESTRICT s, ptrdiff_t src_pitch, int row_size, int height, BYTE * VS_RESTRICT d, int mindif, int asym)
 {
   //d = scratchdata;
+
+	constexpr int mw0 = (maxwidth + 1) / 2; // 7
+	constexpr int mwp1 = mw0 + 1; // 8
+	constexpr int mwm1 = mw0 - 1; // 6
 
   if (mindif>0)
   { // black (low value) scratches
 
     for (int h = 0; h < height; h+=1)
 	{
-		switch (maxwidth)
-		{
-			case 1:// added in v 0.9
-			  for (int row = 0; row < 2; row += 1)
-      			 d[row] = SD_NULL;
-			  for (int row = 2; row < row_size-2; row += 1)
-			  {    // middle rows
-      				if ( (s[row-1]-s[row] > mindif) && (s[row+1]-s[row] > mindif)
-     					&& (abs(s[row-2]-s[row+2]) <= asym)  // added in v.0.7
-     					&& (s[row-1]-s[row]+s[row+1]-s[row] > s[row-2]-s[row-1]+s[row+2]-s[row+1]) ) // changed v1.0
-      					d[row] = SD_EXTREM;  // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-			  }
-			  for (int row = row_size-2; row < row_size; row += 1)
-      			 d[row] = SD_NULL;
-			  break;
-
-			case 3:
-			default:
-			  for (int row = 0; row < 3; row += 1)
-      			 d[row] = SD_NULL;
-			  for (int row = 3; row < row_size-3; row += 1)
-			  {    // middle rows
-      				if ( (s[row-2]-s[row] > mindif) && (s[row+2]-s[row] > mindif)
-     					&& (abs(s[row-3]-s[row+3]) <= asym)  // added in v.0.7
-     					&& (s[row-2]-s[row-1]+s[row+2]-s[row+1] > s[row-3]-s[row-2]+s[row+3]-s[row+2]) ) // changed v1.0
-      					d[row] = SD_EXTREM;  // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-			  }
-			  for (int row = row_size-3; row < row_size; row += 1)
-      			 d[row] = SD_NULL;
-			  break;
-
-			case 5: // v1.0
-			  for (int row = 0; row < 4; row += 1)
-      			 d[row] = SD_NULL;
-			  for (int row = 4; row < row_size-4; row += 1)
-			  {    // middle rows
-      				if ( (s[row-3]-s[row] > mindif) && (s[row+3]-s[row] > mindif)
-     					&& (abs(s[row-4]-s[row+4]) <= asym)
-     					&& (s[row-3]-s[row-2]+s[row+3]-s[row+2] > s[row-4]-s[row-3]+s[row+4]-s[row+3]) )
-      					d[row] = SD_EXTREM;  // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-			  }
-			  for (int row = row_size-4; row < row_size; row += 1)
-      			 d[row] = SD_NULL;
-			  break;
-
-			case 7: // v1.0
-			  for (int row = 0; row < 5; row += 1)
-      			 d[row] = SD_NULL;
-			  for (int row = 5; row < row_size-5; row += 1)
-			  {    // middle rows
-      				if ( (s[row-4]-s[row] > mindif) && (s[row+4]-s[row] > mindif)
-     					&& (abs(s[row-5]-s[row+5]) <= asym)
-     					&& (s[row-4]-s[row-3]+s[row+4]-s[row+3] > s[row-5]-s[row-4]+s[row+5]-s[row+4]) )
-      					d[row] = SD_EXTREM;  // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-			  }
-			  for (int row = row_size-5; row < row_size; row += 1)
-      			 d[row] = SD_NULL;
-			  break;
-
-			case 9: // v1.0
-			  for (int row = 0; row < 6; row += 1)
-      			 d[row] = SD_NULL;
-			  for (int row = 6; row < row_size-6; row += 1)
-			  {    // middle rows
-      				if ( (s[row-5]-s[row] > mindif) && (s[row+5]-s[row] > mindif)
-     					&& (abs(s[row-6]-s[row+6]) <= asym)
-     					&& (s[row-5]-s[row-4]+s[row+5]-s[row+4] > s[row-6]-s[row-5]+s[row+6]-s[row+5]) )
-      					d[row] = SD_EXTREM;  // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-			  }
-			  for (int row = row_size-6; row < row_size; row += 1)
-      			 d[row] = SD_NULL;
-			  break;
-
-			case 11: // v1.0
-			  for (int row = 0; row < 7; row += 1)
-      			 d[row] = SD_NULL;
-			  for (int row = 7; row < row_size-7; row += 1)
-			  {    // middle rows
-      				if ( (s[row-6]-s[row] > mindif) && (s[row+6]-s[row] > mindif)
-     					&& (abs(s[row-7]-s[row+7]) <= asym)
-     					&& (s[row-6]-s[row-5]+s[row+6]-s[row+5] > s[row-7]-s[row-6]+s[row+7]-s[row+6]) )
-      					d[row] = SD_EXTREM;  // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-			  }
-			  for (int row = row_size-7; row < row_size; row += 1)
-      			 d[row] = SD_NULL;
-			  break;
-
-			case 13: // v1.0
-			  for (int row = 0; row < 8; row += 1)
-      			 d[row] = SD_NULL;
-			  for (int row = 8; row < row_size-8; row += 1)
-			  {    // middle rows
-      				if ( (s[row-7]-s[row] > mindif) && (s[row+7]-s[row] > mindif)
-     					&& (abs(s[row-8]-s[row+8]) <= asym)
-     					&& (s[row-7]-s[row-6]+s[row+7]-s[row+6] > s[row-8]-s[row-7]+s[row+8]-s[row+7]) )
-      					d[row] = SD_EXTREM;  // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-			  }
-			  for (int row = row_size-8; row < row_size; row += 1)
-      			 d[row] = SD_NULL;
-
-			  break;
-
-			case 15: // v1.0
-			  for (int row = 0; row < 9; row += 1)
-      			 d[row] = SD_NULL;
-			  for (int row = 9; row < row_size-9; row += 1)
-			  {    // middle rows
-      				if ( (s[row-8]-s[row] > mindif) && (s[row+8]-s[row] > mindif)
-     					&& (abs(s[row-9]-s[row+9]) <= asym)
-     					&& (s[row-8]-s[row-7]+s[row+8]-s[row+7] > s[row-9]-s[row-8]+s[row+9]-s[row+8]) )
-      					d[row] = SD_EXTREM;  // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-			  }
-			  for (int row = row_size-9; row < row_size; row += 1)
-      			 d[row] = SD_NULL;
-
+		for (int row = 0; row < mwp1; row += 1)
+			d[row] = SD_NULL;
+		for (int row = mwp1; row < row_size - mwp1; row += 1) {    // middle rows
+			if ((s[row - mw0] - s[row] > mindif) && (s[row + mw0] - s[row] > mindif)
+				&& (abs(s[row - mwp1] - s[row + mwp1]) <= asym)
+				&& (s[row - mw0] - s[row - mwm1] + s[row + mw0] - s[row + mwm1] > s[row - mwp1] - s[row - mw0] + s[row + mwp1] - s[row + mw0]))
+				d[row] = SD_EXTREM;  // sharp extremum found
+			else
+				d[row] = SD_NULL;
 		}
+		for (int row = row_size - mwp1; row < row_size; row += 1)
+			d[row] = SD_NULL;
 
 		s += src_pitch;
 		d += row_size;
@@ -327,241 +211,45 @@ static void  get_extrems_plane(const BYTE * VS_RESTRICT s, ptrdiff_t src_pitch, 
 
     for (int h = 0; h < height; h+=1)
 	{
-		switch (maxwidth)
-		{
-			case 1: // added in v 0.9
-				for (int row = 0; row < 2; row += 1)
-      				d[row] = SD_NULL;
-				for (int row = 2; row < row_size-2; row += 1)
-				{    // middle rows
-      				if ( (s[row-1]-s[row] < mindif) && (s[row+1]-s[row] < mindif)
-     					&& (abs(s[row-2]-s[row+2]) <= asym)  // added in v.0.7
-      					&& (s[row-1]-s[row]+s[row+1]-s[row] < s[row-2]-s[row-1]+s[row+2]-s[row+1]))
-      					d[row] = SD_EXTREM;    // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-				}
-				for (int row = row_size-2; row < row_size; row += 1)
-      				d[row] = SD_NULL;
-				break;
-
-			case 3:
-			default:
-				for (int row = 0; row < 3; row += 1)
-      				d[row] = SD_NULL;
-				for (int row = 3; row < row_size-3; row += 1)
-				{    // middle rows
-      				if ( (s[row-2]-s[row] < mindif) && (s[row+2]-s[row] < mindif)
-     					&& (abs(s[row-3]-s[row+3]) <= asym)  // added in v.0.7
-      					&& (s[row-2]-s[row-1]+s[row+2]-s[row+1] < s[row-3]-s[row-2]+s[row+3]-s[row+2]))
-      					d[row] = SD_EXTREM;    // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-				}
-				for (int row = row_size-3; row < row_size; row += 1)
-      				d[row] = SD_NULL;
-				break;
-
-			case 5: // v1.0
-				for (int row = 0; row < 4; row += 1)
-      				d[row] = SD_NULL;
-				for (int row = 4; row < row_size-4; row += 1)
-				{    // middle rows
-      				if ( (s[row-3]-s[row] < mindif) && (s[row+3]-s[row] < mindif)
-     					&& (abs(s[row-4]-s[row+4]) <= asym)  // added in v.0.7
-      					&& (s[row-3]-s[row-2]+s[row+3]-s[row+2] < s[row-4]-s[row-3]+s[row+4]-s[row+3]))
-      					d[row] = SD_EXTREM;    // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-				}
-				for (int row = row_size-4; row < row_size; row += 1)
-      				d[row] = SD_NULL;
-				break;
-
-			case 7:
-				for (int row = 0; row < 5; row += 1)
-      				d[row] = SD_NULL;
-				for (int row = 5; row < row_size-5; row += 1)
-				{    // middle rows
-      				if ( (s[row-4]-s[row] < mindif) && (s[row+4]-s[row] < mindif)
-     					&& (abs(s[row-5]-s[row+5]) <= asym)
-      					&& (s[row-4]-s[row-3]+s[row+4]-s[row+3] < s[row-5]-s[row-4]+s[row+5]-s[row+4]))
-      					d[row] = SD_EXTREM;    // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-				}
-				for (int row = row_size-5; row < row_size; row += 1)
-      				d[row] = SD_NULL;
-				break;
-
-			case 9:
-				for (int row = 0; row < 6; row += 1)
-      				d[row] = SD_NULL;
-				for (int row = 6; row < row_size-6; row += 1)
-				{    // middle rows
-      				if ( (s[row-5]-s[row] < mindif) && (s[row+5]-s[row] < mindif)
-     					&& (abs(s[row-6]-s[row+6]) <= asym)
-      					&& (s[row-5]-s[row-4]+s[row+5]-s[row+4] < s[row-6]-s[row-5]+s[row+6]-s[row+5]))
-      					d[row] = SD_EXTREM;    // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-				}
-				for (int row = row_size-6; row < row_size; row += 1)
-      				d[row] = SD_NULL;
-				break;
-
-			case 11:
-				for (int row = 0; row < 7; row += 1)
-      				d[row] = SD_NULL;
-				for (int row = 7; row < row_size-7; row += 1)
-				{    // middle rows
-      				if ( (s[row-6]-s[row] < mindif) && (s[row+6]-s[row] < mindif)
-     					&& (abs(s[row-7]-s[row+7]) <= asym)
-      					&& (s[row-6]-s[row-5]+s[row+6]-s[row+5] < s[row-7]-s[row-6]+s[row+7]-s[row+6]))
-      					d[row] = SD_EXTREM;    // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-				}
-				for (int row = row_size-7; row < row_size; row += 1)
-      				d[row] = SD_NULL;
-				break;
-
-			case 13:
-				for (int row = 0; row < 8; row += 1)
-      				d[row] = SD_NULL;
-				for (int row = 8; row < row_size-8; row += 1)
-				{    // middle rows
-      				if ( (s[row-7]-s[row] < mindif) && (s[row+7]-s[row] < mindif)
-     					&& (abs(s[row-8]-s[row+8]) <= asym)
-      					&& (s[row-7]-s[row-6]+s[row+7]-s[row+6] < s[row-8]-s[row-7]+s[row+8]-s[row+7]))
-      					d[row] = SD_EXTREM;    // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-				}
-				for (int row = row_size-8; row < row_size; row += 1)
-      				d[row] = SD_NULL;
-				break;
-
-			case 15:
-				for (int row = 0; row < 9; row += 1)
-      				d[row] = SD_NULL;
-				for (int row = 9; row < row_size-9; row += 1)
-				{    // middle rows
-      				if ( (s[row-8]-s[row] < mindif) && (s[row+8]-s[row] < mindif)
-     					&& (abs(s[row-9]-s[row+9]) <= asym)
-      					&& (s[row-8]-s[row-7]+s[row+8]-s[row+7] < s[row-9]-s[row-8]+s[row+9]-s[row+8]))
-      					d[row] = SD_EXTREM;    // sharp extremum found
-      				else
-						d[row] = SD_NULL;
-				}
-				for (int row = row_size-9; row < row_size; row += 1)
-      				d[row] = SD_NULL;
+		for (int row = 0; row < mwp1; row += 1)
+			d[row] = SD_NULL;
+		for (int row = mwp1; row < row_size - mwp1; row += 1) {    // middle rows
+			if ((s[row - mw0] - s[row] < mindif) && (s[row + mw0] - s[row] < mindif)
+				&& (abs(s[row - mwp1] - s[row + mwp1]) <= asym)
+				&& (s[row - mw0] - s[row - mwm1] + s[row + mw0] - s[row + mwm1] < s[row - mwp1] - s[row - mw0] + s[row + mwp1] - s[row + mw0]))
+				d[row] = SD_EXTREM;    // sharp extremum found
+			else
+				d[row] = SD_NULL;
 		}
+		for (int row = row_size - mwp1; row < row_size; row += 1)
+			d[row] = SD_NULL;
+
       s += src_pitch;
       d += row_size;
     }
   }
 
 }
-//
-static void  remove_min_extrems_plane(const BYTE * VS_RESTRICT s, ptrdiff_t src_pitch, int row_size, int height, BYTE * VS_RESTRICT d, int mindif, int asym, int minwidth)
-{
-  //d = scratchdata;
-  if (minwidth <= 1)
-    return;
 
-  int removewidth = minwidth - 2;
+// fixme, compare code generation with constexpr/consteval
+// removewidth = minwidth - 2;
+template<int removewidth>
+static void  remove_min_extrems_plane(const BYTE * VS_RESTRICT s, ptrdiff_t src_pitch, int row_size, int height, BYTE * VS_RESTRICT d, int mindif, int asym)
+{
+	constexpr int rw0 = (removewidth + 1) / 2;
+	constexpr int rwp1 = rw0 + 1;
+	constexpr int rwm1 = rw0 - 1;
 
   if (mindif>0)
-  { // black (low value) scratches
+ { // black (low value) scratches
 
     for (int h = 0; h < height; h+=1)
 	{
-		switch (removewidth)
-		{
-		    case 0:
-			default:
-			break;
-
-			case 1:
-			  for (int row = 2; row < row_size-2; row += 1)
-			  {    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-1]-s[row] > mindif) && (s[row+1]-s[row] > mindif)
-     					&& (abs(s[row-2]-s[row+2]) <= asym)  // added in v.0.7
-     					&& (s[row-1]-s[row]+s[row+1]-s[row] > s[row-2]-s[row-1]+s[row+2]-s[row+1]) ) // changed v1.0
-						d[row] = SD_NULL;
-			  }
-			  break;
-
-			case 3:
-			  for (int row = 3; row < row_size-3; row += 1)
-			  {    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-2]-s[row] > mindif) && (s[row+2]-s[row] > mindif)
-     					&& (abs(s[row-3]-s[row+3]) <= asym)  // added in v.0.7
-     					&& (s[row-2]-s[row-1]+s[row+2]-s[row+1] > s[row-3]-s[row-2]+s[row+3]-s[row+2]) ) // changed v1.0
-						d[row] = SD_NULL;
-			  }
-			  break;
-
-			case 5:
-			  for (int row = 4; row < row_size-4; row += 1)
-			  {    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-3]-s[row] > mindif) && (s[row+3]-s[row] > mindif)
-     					&& (abs(s[row-4]-s[row+4]) <= asym)
-     					&& (s[row-3]-s[row-2]+s[row+3]-s[row+2] > s[row-4]-s[row-3]+s[row+4]-s[row+3]) )
-						d[row] = SD_NULL;
-			  }
-			  break;
-
-			case 7: // v1.0
-			  for (int row = 5; row < row_size-5; row += 1)
-			  {    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-4]-s[row] > mindif) && (s[row+4]-s[row] > mindif)
-     					&& (abs(s[row-5]-s[row+5]) <= asym)
-     					&& (s[row-4]-s[row-3]+s[row+4]-s[row+3] > s[row-5]-s[row-4]+s[row+5]-s[row+4]) )
-						d[row] = SD_NULL;
-			  }
-			  break;
-
-			case 9: // v1.0
-			  for (int row = 6; row < row_size-6; row += 1)
-			  {    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-5]-s[row] > mindif) && (s[row+5]-s[row] > mindif)
-     					&& (abs(s[row-6]-s[row+6]) <= asym)
-     					&& (s[row-5]-s[row-4]+s[row+5]-s[row+4] > s[row-6]-s[row-5]+s[row+6]-s[row+5]) )
-						d[row] = SD_NULL;
-			  }
-			  break;
-
-			case 11: // v1.0
-			  for (int row = 7; row < row_size-7; row += 1)
-			  {    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-6]-s[row] > mindif) && (s[row+6]-s[row] > mindif)
-     					&& (abs(s[row-7]-s[row+7]) <= asym)
-     					&& (s[row-6]-s[row-5]+s[row+6]-s[row+5] > s[row-7]-s[row-6]+s[row+7]-s[row+6]) )
-						d[row] = SD_NULL;
-			  }
-			  break;
-
-			case 13: // v1.0
-			  for (int row = 8; row < row_size-8; row += 1)
-			  {    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-7]-s[row] > mindif) && (s[row+7]-s[row] > mindif)
-     					&& (abs(s[row-8]-s[row+8]) <= asym)
-     					&& (s[row-7]-s[row-6]+s[row+7]-s[row+6] > s[row-8]-s[row-7]+s[row+8]-s[row+7]) )
-						d[row] = SD_NULL;
-			  }
-			  break;
-
-			case 15: // v1.0
-			  for (int row = 9; row < row_size-9; row += 1)
-			  {    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-8]-s[row] > mindif) && (s[row+8]-s[row] > mindif)
-     					&& (abs(s[row-9]-s[row+9]) <= asym)
-     					&& (s[row-8]-s[row-7]+s[row+8]-s[row+7] > s[row-9]-s[row-8]+s[row+9]-s[row+8]) )
-						d[row] = SD_NULL;
-			  }
-
+		for (int row = rwp1; row < row_size - rwp1; row += 1) {
+			if (d[row] == SD_EXTREM && (s[row - rw0] - s[row] > mindif) && (s[row + rw0] - s[row] > mindif)
+				&& (abs(s[row - rwp1] - s[row + rwp1]) <= asym)
+				&& (s[row - rw0] - s[row - rwm1] + s[row + rw0] - s[row + rwm1] > s[row - rwp1] - s[row - rw0] + s[row + rwp1] - s[row + rw0]))
+				d[row] = SD_NULL;
 		}
 
 		s += src_pitch;
@@ -574,87 +262,17 @@ static void  remove_min_extrems_plane(const BYTE * VS_RESTRICT s, ptrdiff_t src_
 
     for (int h = 0; h < height; h+=1)
 	{
-		switch (removewidth)
-		{
-			case 0:
-			default:
-			break;
-
-			case 1:
-				for (int row = 2; row < row_size-2; row += 1)
-				{    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-1]-s[row] < mindif) && (s[row+1]-s[row] < mindif)
-     					&& (abs(s[row-2]-s[row+2]) <= asym)  // added in v.0.7
-      					&& (s[row-1]-s[row]+s[row+1]-s[row] < s[row-2]-s[row-1]+s[row+2]-s[row+1]))
-						d[row] = SD_NULL;
-				}
-			break;
-
-			case 3:
-				for (int row = 3; row < row_size-3; row += 1)
-				{    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-2]-s[row] < mindif) && (s[row+2]-s[row] < mindif)
-     					&& (abs(s[row-3]-s[row+3]) <= asym)  // added in v.0.7
-      					&& (s[row-2]-s[row-1]+s[row+2]-s[row+1] < s[row-3]-s[row-2]+s[row+3]-s[row+2]))
-						d[row] = SD_NULL;
-				}
-			break;
-
-
-			case 5: // v1.0
-				for (int row = 4; row < row_size-4; row += 1)
-				{    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-3]-s[row] < mindif) && (s[row+3]-s[row] < mindif)
-     					&& (abs(s[row-4]-s[row+4]) <= asym)  // added in v.0.7
-      					&& (s[row-3]-s[row-2]+s[row+3]-s[row+2] < s[row-4]-s[row-3]+s[row+4]-s[row+3]))
-						d[row] = SD_NULL;
-				}
-				break;
-
-			case 7:
-				for (int row = 5; row < row_size-5; row += 1)
-				{    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-4]-s[row] < mindif) && (s[row+4]-s[row] < mindif)
-     					&& (abs(s[row-5]-s[row+5]) <= asym)
-      					&& (s[row-4]-s[row-3]+s[row+4]-s[row+3] < s[row-5]-s[row-4]+s[row+5]-s[row+4]))
-						d[row] = SD_NULL;
-				}
-				break;
-
-			case 9:
-				for (int row = 6; row < row_size-6; row += 1)
-				{    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-5]-s[row] < mindif) && (s[row+5]-s[row] < mindif)
-     					&& (abs(s[row-6]-s[row+6]) <= asym)
-      					&& (s[row-5]-s[row-4]+s[row+5]-s[row+4] < s[row-6]-s[row-5]+s[row+6]-s[row+5]))
-						d[row] = SD_NULL;
-				}
-				break;
-
-			case 11:
-				for (int row = 7; row < row_size-7; row += 1)
-				{    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-6]-s[row] < mindif) && (s[row+6]-s[row] < mindif)
-     					&& (abs(s[row-7]-s[row+7]) <= asym)
-      					&& (s[row-6]-s[row-5]+s[row+6]-s[row+5] < s[row-7]-s[row-6]+s[row+7]-s[row+6]))
-						d[row] = SD_NULL;
-				}
-				break;
-
-			case 13:
-				for (int row = 8; row < row_size-8; row += 1)
-				{    // middle rows
-      				if ( d[row] == SD_EXTREM && (s[row-7]-s[row] < mindif) && (s[row+7]-s[row] < mindif)
-     					&& (abs(s[row-8]-s[row+8]) <= asym)
-      					&& (s[row-7]-s[row-6]+s[row+7]-s[row+6] < s[row-8]-s[row-7]+s[row+8]-s[row+7]))
-						d[row] = SD_NULL;
-				}
+		for (int row = rwp1; row < row_size - rwp1; row += 1) {
+			if (d[row] == SD_EXTREM && (s[row - rw0] - s[row] < mindif) && (s[row + rw0] - s[row] < mindif)
+				&& (abs(s[row - rwp1] - s[row + rwp1]) <= asym)
+				&& (s[row - rw0] - s[row - rwm1] + s[row + rw0] - s[row + rwm1] < s[row - rwp1] - s[row - rw0] + s[row + rwp1] - s[row + rw0]))
+				d[row] = SD_NULL;
 		}
+
       s += src_pitch;
       d += row_size;
     }
   }
-
 }
 
 
@@ -675,7 +293,7 @@ static void  close_gaps(BYTE * VS_RESTRICT d, int rows, int height, int maxgap) 
 }
 //
 //
-//
+// fixme, weird variable uses that can probably be improved
 static void  test_scratches(BYTE * VS_RESTRICT d, int rows, int height, int maxwidth, int minlens, int maxlens, float maxangle)
 {
   //d = scratchdata;    // copy pointer
@@ -782,7 +400,7 @@ static void  mark_scratches_plane(BYTE * VS_RESTRICT dest_data, ptrdiff_t dest_p
 
 //
 //
-//
+// fixme, weird variable uses here too
 static void remove_scratches_plane(const BYTE * VS_RESTRICT src_data, ptrdiff_t src_pitch, BYTE * VS_RESTRICT dest_data, ptrdiff_t dest_pitch,
 	  const BYTE *VS_RESTRICT blured_data, ptrdiff_t blured_pitch, int row_size, int height, BYTE * VS_RESTRICT d,
 	  int mindif1, int maxwidth, int keep100, int border)
@@ -840,15 +458,40 @@ void DeScratchShared::DeScratch_pass (const BYTE * VS_RESTRICT srcp, ptrdiff_t s
 //		pass for current plane and current sign
     if (row_sizep < maxwidth +3)
 		return;  //v.1.0
+	
+	switch (maxwidth) {
+	case 1: get_extrems_plane<1>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+	case 3: get_extrems_plane<3>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+	case 5: get_extrems_plane<5>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+	case 7: get_extrems_plane<7>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+	case 9: get_extrems_plane<9>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+	case 11: get_extrems_plane<11>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+	case 13: get_extrems_plane<13>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+	case 15: get_extrems_plane<15>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+	default:
+		assert(false);
+	}
 
-	get_extrems_plane(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym, maxwidth);
-	if (minwidth>1) remove_min_extrems_plane(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym, minwidth);
+	if (minwidth > 1) {
+		int removewidth = minwidth - 2;
+		switch (removewidth) {
+		case 1: remove_min_extrems_plane<1>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+		case 3: remove_min_extrems_plane<3>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+		case 5: remove_min_extrems_plane<5>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+		case 7: remove_min_extrems_plane<7>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+		case 9: remove_min_extrems_plane<9>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+		case 11: remove_min_extrems_plane<11>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+		case 13: remove_min_extrems_plane<13>(bluredp, blured_pitch, row_sizep, heightp, scratchdata, mindifp, asym); break;
+		default:
+			assert(false);
+		}
+	}
 	close_gaps(scratchdata, row_sizep, heightp, maxgap/hscale);
 	test_scratches(scratchdata, row_sizep, heightp, maxwidth, minlen/hscale, maxlen/hscale, maxangle);
 
 	if (mark)
 	{
-	 
+	   // fixme, weird variable use
 		int markvalue = (mindifp > 0) ? 0 : 255;
 	   mark_scratches_plane(destp, dest_pitch, row_sizep, heightp, scratchdata, SD_GOOD, markvalue);
        markvalue=127;
