@@ -517,98 +517,37 @@ PVideoFrame __stdcall DeScratch::GetFrame (int ndest, IScriptEnvironment* env)
 	//   Get  blured frame
 	 PVideoFrame blured = blured_clip->GetFrame(ndest, env);
 
-	 int sign;
-	int plane;
+	 auto ProcessPlane = [&src, &blured, &dest, this, env](int plane, int mode, int mindif) {
+		 const BYTE *bluredp = blured->GetReadPtr(plane);
+		 int blured_pitch = blured->GetPitch(plane);
+		 BYTE *destp = dest->GetWritePtr(plane);
+		 int dest_pitch = dest->GetPitch(plane);
+		 const BYTE *srcp = src->GetReadPtr(plane);
+		 int src_pitch = src->GetPitch(plane);
+		 int row_size = src->GetRowSize(plane);
+		 int heightp = src->GetHeight(plane);
+		 int wleftp = wleft * row_size / width;
+		 int wrightp = wright * row_size / width;
 
-	plane = PLANAR_Y;
-	const BYTE * bluredp = blured->GetReadPtr(plane);
-	int blured_pitch = blured->GetPitch(plane);
-    BYTE * destp = dest->GetWritePtr(plane);
-    int dest_pitch = dest->GetPitch(plane);
-    const BYTE * srcp = src->GetReadPtr(plane);
-    int src_pitch = src->GetPitch(plane);
-    int row_size = src->GetRowSize(plane);
-    int heightp = src->GetHeight(plane);
-	int wleftp=wleft*row_size/width;
-	int wrightp=wright*row_size/width;
+		 // remove scratches  for every plane and sign independently
+		 if (mode == MODE_ALL) {
+			 env->BitBlt(buf, buf_pitch, srcp, src_pitch, row_size, heightp);
+			 DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, buf + wleftp, buf_pitch, wrightp - wleftp, heightp, height / heightp, mindif, asym);
+			 env->BitBlt(destp, dest_pitch, buf, buf_pitch, row_size, heightp);
+			 DeScratch_pass(buf + wleftp, buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, (height / heightp), (-mindif), asym);
+		 } else {
+			 env->BitBlt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
+			 if (mode == MODE_LOW || mode == MODE_HIGH) {
+				 int sign = (mode == MODE_LOW) ? 1 : -1;
+				 DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, height / heightp, sign * mindif, asym);
+			 }
+		 }
 
-	// remove scratches  for every plane and sign independently
-	if (modeY == MODE_ALL)
-	{
-		env->BitBlt(buf, buf_pitch, srcp, src_pitch, row_size, heightp);
-		DeScratch_pass (srcp+wleftp, src_pitch, bluredp+wleftp, blured_pitch, buf+wleftp, buf_pitch, wrightp-wleftp, heightp, height/heightp, mindif, asym);
-		env->BitBlt( destp, dest_pitch, buf, buf_pitch, row_size, heightp);
-		DeScratch_pass (buf+wleftp, buf_pitch, bluredp+wleftp, blured_pitch, destp+wleftp, dest_pitch, wrightp-wleftp, heightp, (height/heightp), (-mindif), asym);
-	}
-	else
-	{
-		env->BitBlt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
-		if (modeY == MODE_LOW || modeY == MODE_HIGH)
-		{
-			sign = (modeY == MODE_LOW) ? 1 : -1;
-			DeScratch_pass (srcp+wleftp, src_pitch, bluredp+wleftp, blured_pitch, destp+wleftp, dest_pitch, wrightp-wleftp, heightp, height/heightp, sign*mindif, asym);
-		}
-	}
+		 };
 
-
-	plane = PLANAR_U;
-	bluredp = blured->GetReadPtr(plane);
-	blured_pitch = blured->GetPitch(plane);
-    destp = dest->GetWritePtr(plane);
-    dest_pitch = dest->GetPitch(plane);
-    srcp = src->GetReadPtr(plane);
-    src_pitch = src->GetPitch(plane);
-    row_size = src->GetRowSize(plane);
-    heightp = src->GetHeight(plane);
-	wleftp=wleft*row_size/width;
-	wrightp=wright*row_size/width;
-
-	if (modeU == MODE_ALL)
-	{
-		env->BitBlt(buf, buf_pitch, srcp, src_pitch, row_size, heightp);
-		DeScratch_pass (srcp+wleftp, src_pitch, bluredp+wleftp, blured_pitch, buf+wleftp, buf_pitch, wrightp-wleftp, heightp, height/heightp, mindifUV, asym);
-		env->BitBlt( destp, dest_pitch, buf, buf_pitch, row_size, heightp);
-		DeScratch_pass (buf+wleftp, buf_pitch, bluredp+wleftp, blured_pitch, destp+wleftp, dest_pitch, wrightp-wleftp, heightp, height/heightp, -mindifUV, asym);
-	}
-	else
-	{
-		env->BitBlt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
-		if (modeU == MODE_LOW || modeU == MODE_HIGH)
-		{
-			sign = (modeU == MODE_LOW) ? 1 : -1;
-			DeScratch_pass (srcp+wleftp, src_pitch, bluredp+wleftp, blured_pitch, destp+wleftp, dest_pitch, wrightp-wleftp, heightp, height/heightp, sign*mindifUV, asym);
-		}
-	}
-
-
-	plane = PLANAR_V;
-	bluredp = blured->GetReadPtr(plane);
-	blured_pitch = blured->GetPitch(plane);
-    destp = dest->GetWritePtr(plane);
-    dest_pitch = dest->GetPitch(plane);
-    srcp = src->GetReadPtr(plane);
-    src_pitch = src->GetPitch(plane);
-    row_size = src->GetRowSize(plane);
-    heightp = src->GetHeight(plane);
-	wleftp=wleft*row_size/width;
-	wrightp=wright*row_size/width;
-
-	if (modeV == MODE_ALL)
-	{
-		env->BitBlt(buf, buf_pitch, srcp, src_pitch, row_size, heightp);
-		DeScratch_pass (srcp+wleftp, src_pitch, bluredp+wleftp, blured_pitch, buf+wleftp, buf_pitch, wrightp-wleftp, heightp, height/heightp, mindifUV, asym);
-		env->BitBlt( destp, dest_pitch, buf, buf_pitch, row_size, heightp);
-		DeScratch_pass (buf+wleftp, buf_pitch, bluredp+wleftp, blured_pitch, destp+wleftp, dest_pitch, wrightp-wleftp, heightp, height/heightp, -mindifUV, asym);
-	}
-	else
-	{
-		env->BitBlt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
-		if (modeV == MODE_LOW || modeV == MODE_HIGH)
-		{
-			sign = (modeV == MODE_LOW) ? 1 : -1;
-			DeScratch_pass (srcp+wleftp, src_pitch, bluredp+wleftp, blured_pitch, destp+wleftp, dest_pitch, wrightp-wleftp, heightp, height/heightp, sign*mindifUV, asym);
-		}
-	}
+	ProcessPlane(PLANAR_Y, modeY, mindif);
+	ProcessPlane(PLANAR_U, modeU, mindifUV);
+	ProcessPlane(PLANAR_V, modeV, mindifUV);
 
   return dest;
 }
@@ -682,77 +621,37 @@ static const VSFrame *VS_CC deScratchGetFrame(int n, int activationReason, void 
 		const VSFrame *blured = vsapi->getFrameFilter(n, d->blured_clip, frameCtx);
 		VSFrame *dest = vsapi->newVideoFrame(vsapi->getVideoFrameFormat(src), d->width, d->height, src, core);
 
-		const BYTE *bluredp;
-		ptrdiff_t blured_pitch;
-		BYTE *destp;
-		ptrdiff_t dest_pitch;
-		const BYTE *srcp;
-		ptrdiff_t src_pitch;
-		int row_size;
-		int heightp;
-		int wleftp;
-		int wrightp;
+		auto ProcessPlane = [src, blured, dest, vsapi, d](int plane, int mode, int mindif) {
+			const BYTE *bluredp = vsapi->getReadPtr(blured, plane);
+			ptrdiff_t blured_pitch = vsapi->getStride(blured, plane);
+			BYTE * destp = vsapi->getWritePtr(dest, plane);
+			ptrdiff_t dest_pitch = vsapi->getStride(dest, plane);
+			const BYTE *srcp = vsapi->getReadPtr(src, plane);
+			ptrdiff_t src_pitch = vsapi->getStride(src, plane);
+			int row_size = vsapi->getFrameWidth(src, plane);
+			int heightp = vsapi->getFrameHeight(src, plane);
+			int wleftp = d->wleft * row_size / d->width;
+			int wrightp = d->wright * row_size / d->width;
 
-		auto populatePlaneInfo = [&](int plane) {
-			bluredp = vsapi->getReadPtr(blured, plane);
-			blured_pitch = vsapi->getStride(blured, plane);
-			destp = vsapi->getWritePtr(dest, plane);
-			dest_pitch = vsapi->getStride(dest, plane);
-			srcp = vsapi->getReadPtr(src, plane);
-			src_pitch = vsapi->getStride(src, plane);
-			row_size = vsapi->getFrameWidth(src, plane);
-			heightp = vsapi->getFrameHeight(src, plane);
-			wleftp = d->wleft * row_size / d->width;
-			wrightp = d->wright * row_size / d->width;
-			};
-
-		populatePlaneInfo(0);
-
-		// remove scratches  for every plane and sign independently
-		if (d->modeY == MODE_ALL) {
-			vsh::bitblt(d->buf, d->buf_pitch, srcp, src_pitch, row_size, heightp);
-			d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, d->buf + wleftp, d->buf_pitch, wrightp - wleftp, heightp, d->height / heightp, d->mindif, d->asym);
-			vsh::bitblt(destp, dest_pitch, d->buf, d->buf_pitch, row_size, heightp);
-			d->DeScratch_pass(d->buf + wleftp, d->buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, (d->height / heightp), (-d->mindif), d->asym);
-		} else {
-			vsh::bitblt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
-			if (d->modeY == MODE_LOW || d->modeY == MODE_HIGH) {
-				int sign = (d->modeY == MODE_LOW) ? 1 : -1;
-				d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, d->height / heightp, sign * d->mindif, d->asym);
+			if (mode == MODE_ALL) {
+				vsh::bitblt(d->buf, d->buf_pitch, srcp, src_pitch, row_size, heightp);
+				d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, d->buf + wleftp, d->buf_pitch, wrightp - wleftp, heightp, d->height / heightp, mindif, d->asym);
+				vsh::bitblt(destp, dest_pitch, d->buf, d->buf_pitch, row_size, heightp);
+				d->DeScratch_pass(d->buf + wleftp, d->buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, (d->height / heightp), (-mindif), d->asym);
+			} else {
+				vsh::bitblt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
+				if (mode == MODE_LOW || mode == MODE_HIGH) {
+					int sign = (mode == MODE_LOW) ? 1 : -1;
+					d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, d->height / heightp, sign * mindif, d->asym);
+				}
 			}
-		}
+		};
 
-		populatePlaneInfo(1);
+		ProcessPlane(0, d->modeY, d->mindif);
+		ProcessPlane(1, d->modeU, d->mindifUV);
+		ProcessPlane(2, d->modeV, d->mindifUV);
 
-		if (d->modeU == MODE_ALL) {
-			vsh::bitblt(d->buf, d->buf_pitch, srcp, src_pitch, row_size, heightp);
-			d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, d->buf + wleftp, d->buf_pitch, wrightp - wleftp, heightp, d->height / heightp, d->mindifUV, d->asym);
-			vsh::bitblt(destp, dest_pitch, d->buf, d->buf_pitch, row_size, heightp);
-			d->DeScratch_pass(d->buf + wleftp, d->buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, d->height / heightp, -d->mindifUV, d->asym);
-		} else {
-			vsh::bitblt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
-			if (d->modeU == MODE_LOW || d->modeU == MODE_HIGH) {
-				int sign = (d->modeU == MODE_LOW) ? 1 : -1;
-				d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, d->height / heightp, sign * d->mindifUV, d->asym);
-			}
-		}
-
-		populatePlaneInfo(2);
-
-		if (d->modeV == MODE_ALL) {
-			vsh::bitblt(d->buf, d->buf_pitch, srcp, src_pitch, row_size, heightp);
-			d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, d->buf + wleftp, d->buf_pitch, wrightp - wleftp, heightp, d->height / heightp, d->mindifUV, d->asym);
-			vsh::bitblt(destp, dest_pitch, d->buf, d->buf_pitch, row_size, heightp);
-			d->DeScratch_pass(d->buf + wleftp, d->buf_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, d->height / heightp, -d->mindifUV, d->asym);
-		} else {
-			vsh::bitblt(destp, dest_pitch, srcp, src_pitch, row_size, heightp);
-			if (d->modeV == MODE_LOW || d->modeV == MODE_HIGH) {
-				int sign = (d->modeV == MODE_LOW) ? 1 : -1;
-				d->DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, destp + wleftp, dest_pitch, wrightp - wleftp, heightp, d->height / heightp, sign * d->mindifUV, d->asym);
-			}
-		}
-
-		return dest;    // return computed frame
+		return dest;
 	}
 
 	return nullptr;
