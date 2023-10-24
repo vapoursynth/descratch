@@ -566,7 +566,7 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
         d->minlen = 100;
     d->maxlen = vsapi->mapGetIntSaturated(in, "maxlen", 0, &err);
     if (err)
-        d->minlen = 2048;
+        d->maxlen = 2048;
     d->maxangle = vsapi->mapGetFloatSaturated(in, "maxangle", 0, &err);
     if (err)
         d->maxangle = 5.0f;
@@ -582,14 +582,14 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
     d->modeY = vsapi->mapGetIntSaturated(in, "modeY", 0, &err);
     if (err)
         d->modeY = 1;
-    d->modeU = vsapi->mapGetIntSaturated(in, "modeU", 0, nullptr);
-    d->modeV = vsapi->mapGetIntSaturated(in, "modeV", 0, nullptr);
-    d->mindifUV = vsapi->mapGetIntSaturated(in, "mindifUV", 0, nullptr);
-    d->mark = !!vsapi->mapGetIntSaturated(in, "mark", 0, nullptr);
+    d->modeU = vsapi->mapGetIntSaturated(in, "modeU", 0, &err);
+    d->modeV = vsapi->mapGetIntSaturated(in, "modeV", 0, &err);
+    d->mindifUV = vsapi->mapGetIntSaturated(in, "mindifUV", 0, &err);
+    d->mark = !!vsapi->mapGetIntSaturated(in, "mark", 0, &err);
     d->minwidth = vsapi->mapGetIntSaturated(in, "minwidth", 0, &err);
     if (err)
         d->minwidth = 1;
-    d->wleft = vsapi->mapGetIntSaturated(in, "left", 0, nullptr);
+    d->wleft = vsapi->mapGetIntSaturated(in, "left", 0, &err);
     d->wright = vsapi->mapGetIntSaturated(in, "right", 0, &err);
     if (err)
         d->wright = 4096;
@@ -656,7 +656,7 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
     vsapi->freeMap(args1);
     vsapi->mapSetInt(args2, "width", d->width, maAppend);
     vsapi->mapSetInt(args2, "height", d->height, maAppend);
-    VSMap *result = vsapi->invoke(vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core), "Bicubic", args1);
+    VSMap *result = vsapi->invoke(vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core), "Bicubic", args2);
     vsapi->freeMap(args2);
     d->blured_clip = vsapi->mapGetNode(result, "clip", 0, nullptr);
     vsapi->freeMap(result);
@@ -673,5 +673,5 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("com.vapoursynth.descratch", "descratch", "DeScratch for Vapoursynth and friends", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
-    vspapi->registerFunction("descratch", "clip:vnode;mindif:integer;asym:integer;maxgap:integer;maxwidth:integer;minlen:integer;maxlen:integer;maxangle:float;blurlen:integer;keep:integer;border:integer;modeY:integer;modeU:integer;modeV:integer;mindifUV:integer;mark:integer;minwidth:integer;left:integer;right:integer;", "clip:vnode;", deScratchCreate, nullptr, plugin);
+    vspapi->registerFunction("DeScratch", "clip:vnode;mindif:int:opt;asym:int:opt;maxgap:int:opt;maxwidth:int:opt;minlen:int:opt;maxlen:int:opt;maxangle:float:opt;blurlen:int:opt;keep:int:opt;border:int:opt;modeY:int:opt;modeU:int:opt;modeV:int:opt;mindifUV:int:opt;mark:int:opt;minwidth:int:opt;left:int:opt;right:int:opt;", "clip:vnode;", deScratchCreate, nullptr, plugin);
 }
