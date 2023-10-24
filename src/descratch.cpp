@@ -530,7 +530,7 @@ AVSValue __cdecl Create_DeScratch(AVSValue args, void* user_data, IScriptEnviron
 		 args[4].AsInt(3), //scratch maxwidth
 		 args[5].AsInt(100), //minlen
 		 args[6].AsInt(2048), //maxlen
-		 args[7].AsFloat(5.0), //maxangle
+		 args[7].AsFloatf(5.0f), //maxangle
 		 args[8].AsInt(15), //blurlen
 		 args[9].AsInt(100), //keep
 		 args[10].AsInt(2), //border
