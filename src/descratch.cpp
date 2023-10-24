@@ -579,12 +579,12 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
     d->border = vsapi->mapGetIntSaturated(in, "border", 0, &err);
     if (err)
         d->border = 2;
-    d->modeY = vsapi->mapGetIntSaturated(in, "modeY", 0, &err);
+    d->modeY = vsapi->mapGetIntSaturated(in, "modey", 0, &err);
     if (err)
         d->modeY = 1;
-    d->modeU = vsapi->mapGetIntSaturated(in, "modeU", 0, &err);
-    d->modeV = vsapi->mapGetIntSaturated(in, "modeV", 0, &err);
-    d->mindifUV = vsapi->mapGetIntSaturated(in, "mindifUV", 0, &err);
+    d->modeU = vsapi->mapGetIntSaturated(in, "modeu", 0, &err);
+    d->modeV = vsapi->mapGetIntSaturated(in, "modev", 0, &err);
+    d->mindifUV = vsapi->mapGetIntSaturated(in, "mindifuv", 0, &err);
     d->mark = !!vsapi->mapGetIntSaturated(in, "mark", 0, &err);
     d->minwidth = vsapi->mapGetIntSaturated(in, "minwidth", 0, &err);
     if (err)
@@ -673,5 +673,5 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("com.vapoursynth.descratch", "descratch", "DeScratch for Vapoursynth and friends", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
-    vspapi->registerFunction("DeScratch", "clip:vnode;mindif:int:opt;asym:int:opt;maxgap:int:opt;maxwidth:int:opt;minlen:int:opt;maxlen:int:opt;maxangle:float:opt;blurlen:int:opt;keep:int:opt;border:int:opt;modeY:int:opt;modeU:int:opt;modeV:int:opt;mindifUV:int:opt;mark:int:opt;minwidth:int:opt;left:int:opt;right:int:opt;", "clip:vnode;", deScratchCreate, nullptr, plugin);
+    vspapi->registerFunction("DeScratch", "clip:vnode;mindif:int:opt;asym:int:opt;maxgap:int:opt;maxwidth:int:opt;minlen:int:opt;maxlen:int:opt;maxangle:float:opt;blurlen:int:opt;keep:int:opt;border:int:opt;modey:int:opt;modeu:int:opt;modev:int:opt;mindifuv:int:opt;mark:int:opt;minwidth:int:opt;left:int:opt;right:int:opt;", "clip:vnode;", deScratchCreate, nullptr, plugin);
 }
