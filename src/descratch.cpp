@@ -121,7 +121,7 @@ DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _max
         if ( (maxgap<0) || (maxgap>255))
            env->ThrowError("Descratch: maxgap must be >=0 and <=256!");
         if ( !(maxwidth % 2) || (maxwidth < 1) || (maxwidth >15))
-           env->ThrowError("Descratch: maxwidth must be odd from 1 to 15!"); // v.1.0
+           env->ThrowError("Descratch: maxwidth must be odd from 1 to 15!");
         if ( (minlen<=0))
            env->ThrowError("Descratch: minlen must be > 0!");
         if ( (maxlen<=0))
@@ -129,7 +129,7 @@ DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _max
         if ( (maxangle<0) || (maxangle>90) )
            env->ThrowError("Descratch: maxangle must be from 0 to 90!");
         if ( (blurlen<0) || (blurlen>200) )
-           env->ThrowError("Descratch: blurlen must be from 0 to 200!"); // v1.0
+           env->ThrowError("Descratch: blurlen must be from 0 to 200!");
         if ( (keep<0) || (keep>100) )
            env->ThrowError("Descratch: keep must be from 0 to 100!");
         if ( (border<0) || (border>5) )
@@ -141,14 +141,14 @@ DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _max
         if ( minwidth > maxwidth )
            env->ThrowError("Descratch: minwidth must be not above maxwidth!");
         if ( !(minwidth %2) || (minwidth < 1) || (minwidth >15))
-           env->ThrowError("Descratch: minwidth must be odd from 1 to 15!"); // v.1.0
+           env->ThrowError("Descratch: minwidth must be odd from 1 to 15!");
 
 
 		width = vi.width;
 		height= vi.height;
 		buf_pitch = width + 16 - width%16;
 
-		// check working window limits - v.1.0
+		// check working window limits
 		if (wleft < 0)
 			wleft = 0;
 		wleft = wleft - wleft%2;
@@ -163,8 +163,6 @@ DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _max
 
    int down_height = (vi.height)/(1+blurlen);
    if (down_height%2) down_height -=1;
- //  int height = vi.height;
- //  int width = vi.width;
       AVSValue down_args[3] = { child, width, down_height};
       PClip down_clip = env->Invoke("BilinearResize", AVSValue(down_args,3)).AsClip();
 
@@ -383,10 +381,6 @@ static void  test_scratches(BYTE * VS_RESTRICT d, int rows, int height, int maxw
 
 }
 
-
-//
-//
-//
 static void  mark_scratches_plane(BYTE * VS_RESTRICT dest_data, ptrdiff_t dest_pitch, ptrdiff_t row_size, int height, BYTE * VS_RESTRICT scratchdata, BYTE mask, BYTE value) {
     for (int h = 0; h < height; h++) {
       for (int row = 0; row < row_size; row++)  {
@@ -398,8 +392,6 @@ static void  mark_scratches_plane(BYTE * VS_RESTRICT dest_data, ptrdiff_t dest_p
     }
 }
 
-//
-//
 // fixme, weird variable uses here too
 static void remove_scratches_plane(const BYTE * VS_RESTRICT src_data, ptrdiff_t src_pitch, BYTE * VS_RESTRICT dest_data, ptrdiff_t dest_pitch,
 	  const BYTE *VS_RESTRICT blured_data, ptrdiff_t blured_pitch, int row_size, int height, BYTE * VS_RESTRICT d,
@@ -504,18 +496,11 @@ void DeScratchShared::DeScratch_pass (const BYTE * VS_RESTRICT srcp, ptrdiff_t s
 	}
 }
 
-//
-//  Frame computing function *************************************************************
-//
-
 PVideoFrame __stdcall DeScratch::GetFrame (int ndest, IScriptEnvironment* env)
 {
-   // Request frame 'n' from the child (source) clip.
 	PVideoFrame src = child->GetFrame(ndest, env);
+	PVideoFrame blured = blured_clip->GetFrame(ndest, env);
 	PVideoFrame dest = env->NewVideoFrame(vi);
-
-	//   Get  blured frame
-	 PVideoFrame blured = blured_clip->GetFrame(ndest, env);
 
 	 auto ProcessPlane = [&src, &blured, &dest, this, env](int plane, int mode, int mindif) {
 		 const BYTE *bluredp = blured->GetReadPtr(plane);
@@ -529,7 +514,6 @@ PVideoFrame __stdcall DeScratch::GetFrame (int ndest, IScriptEnvironment* env)
 		 int wleftp = wleft * row_size / width;
 		 int wrightp = wright * row_size / width;
 
-		 // remove scratches  for every plane and sign independently
 		 if (mode == MODE_ALL) {
 			 env->BitBlt(buf, buf_pitch, srcp, src_pitch, row_size, heightp);
 			 DeScratch_pass(srcp + wleftp, src_pitch, bluredp + wleftp, blured_pitch, buf + wleftp, buf_pitch, wrightp - wleftp, heightp, height / heightp, mindif, asym);
@@ -574,41 +558,23 @@ AVSValue __cdecl Create_DeScratch(AVSValue args, void* user_data, IScriptEnviron
 		 args[17].AsInt(0), // window left (inclusive) - v.1.0
 		 args[18].AsInt(4096), // window right (exclusive) - v.1.0
 		 env);
-    // Calls the constructor with the arguments provied.
 }
-
-
-// The following function is the function that actually registers the filter in AviSynth
-// It is called automatically, when the plugin is loaded to see which functions this filter contains.
 
 const AVS_Linkage *AVS_linkage = 0;
 extern "C" __declspec(dllexport) const char* __stdcall AvisynthPluginInit3(IScriptEnvironment* env, const AVS_Linkage* const vectors)
 {
     AVS_linkage = vectors;
     env->AddFunction("descratch", "c[mindif]i[asym]i[maxgap]i[maxwidth]i[minlen]i[maxlen]i[maxangle]f[blurlen]i[keep]i[border]i[modeY]i[modeU]i[modeV]i[mindifUV]i[mark]b[minwidth]i[left]i[right]i", Create_DeScratch, 0);
-    // The AddFunction has the following paramters:
-    // AddFunction(Filtername , Arguments, Function to call,0);
-
-    // Arguments is a string that defines the types and optional names of the arguments for you filter.
-    // c - Video Clip
-    // i - Integer number
-    // f - Float number
-    // s - String
-    // b - boolean
-
-	 // The word inside the [ ] lets you used named parameters in your script
-
     return "DeScratch";
-    // A freeform name of the plugin.
 }
 
-
+////////////////
+// VapourSynth support starts here
 
 struct DeScratchVSData : public DeScratchShared {
 	VSNode *node;
 	VSNode *blured_clip;
 };
-
 
 static const VSFrame *VS_CC deScratchGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
 	DeScratchVSData *d = (DeScratchVSData *)instanceData;
@@ -755,7 +721,7 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
 	d->height = vi->height;
 	d->buf_pitch = d->width + 16 - d->width % 16;
 
-	// check working window limits - v.1.0
+	// check working window limits
 	if (d->wleft < 0)
 		d->wleft = 0;
 	d->wleft = d->wleft - d->wleft % 2;
