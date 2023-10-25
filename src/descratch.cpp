@@ -106,8 +106,8 @@ DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _max
         env->ThrowError("Descratch: keep must be from 0 to 100!");
     if ((border < 0) || (border > 5))
         env->ThrowError("Descratch: border must be from 0 to 5!");
-    if (!vi.IsYV12())
-        env->ThrowError("Descratch: Video must be YV12!");
+    if (!vi.IsYV12() && !vi.IsYV16() && !vi.IsYV24())
+        env->ThrowError("Descratch: Video must be YV12, YV16 or YV24!");
     if (modeY < 0 || modeY>3 || modeU < 0 || modeU>3 || modeV < 0 || modeV>3)
         env->ThrowError("Descratch: modeY, modeU, modeV must be from 0 to 3!");
     if (minwidth > maxwidth)
@@ -145,8 +145,6 @@ DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _max
 
 template<int maxwidth>
 static void  get_extrems_plane(const BYTE *VS_RESTRICT s, ptrdiff_t src_pitch, int row_size, int height, BYTE *VS_RESTRICT d, int mindif, int asym) {
-    //d = scratchdata;
-
     constexpr int mw0 = (maxwidth + 1) / 2; // 7
     constexpr int mwp1 = mw0 + 1; // 8
     constexpr int mwm1 = mw0 - 1; // 6
@@ -191,7 +189,6 @@ static void  get_extrems_plane(const BYTE *VS_RESTRICT s, ptrdiff_t src_pitch, i
             d += row_size;
         }
     }
-
 }
 
 // removewidth = minwidth - 2;
@@ -628,8 +625,12 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
 
-    if (!vsh::isConstantVideoFormat(vi) || (vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core) != pfYUV420P8))
-        RETERROR("Descratch: Video must be constant format YV12!");
+    if (!vsh::isConstantVideoFormat(vi))
+        RETERROR("Descratch: Video must be constant format!");
+
+    uint32_t fid = vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core);
+    if (fid != pfYUV420P8 && fid != pfYUV422P8 && fid != pfYUV444P8)
+        RETERROR("Descratch: Video must be YV12, YV16 or YV24!");
 
     d->width = vi->width;
     d->height = vi->height;
