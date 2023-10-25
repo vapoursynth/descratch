@@ -1,45 +1,43 @@
 <html>
 <head>
-<title>DeScratch Plugin for Avisynth</title>
-<link rel="stylesheet" type="text/css" href="../avisynth.css">
-
+<title>DeScratch Plugin for VapourSynth and Avisynth+</title>
 </head>
 
 <body>
-<h1>DeScratch - Scratches Removing Filter</h1>
+<h1>DeScratch - Scratch Removing Filter</h1>
 <p>Plugin for <a href="http://www.avisynth.org">AviSynth 2.5</a><br>
-Version 1.1<br>
+Version 2.0<br>
 Copyright (C)2003-2016 Alexander G. Balakhnin aka Fizick<br>
+Modernization and VapourSynth support by Fredrik Mellbin<br>
 <a href="http://avisynth.org.ru">http://avisynth.org.ru</a><br>
 <h3>Purpose</h3>
 This plugin  removes vertical scratches from films. Also it
-can be used for removing of horizontal noise lines such as drop-outs
+can be used for removing horizontal noise lines such as drop-outs
 from analog VHS captures (after image rotation). 
 <h3>How it works</h3>
 <p>The plugin firstly detects scratches, then removes them.<br>
-It uses spatial information only from current frame.<br>
-I adapt it to restoration of my old 8 mm films, may be it will be useful to somebody else.</p>
-<h4>Scratch detecting</h4>
+It uses spatial information only from the current frame.<br>
+I created it for restoration of my old 8 mm films, maybe it will be useful to somebody else.</p>
+<h4>Scratch detection</h4>
 <p>Apply some vertical blur to frame copy, for suppression of image thin structure, inclined lines and noise.<br>
 Search for local extremes of luma in every row with luma difference criterion for scratches with width not above a max.<br>
 Put these extremes in some map (frame). Search and deactivate extrems for width below a min (optional).<br>
 Optionally close vertical gaps in extrems by vertical expanding of extreme points.<br>
 Test the extremes map with length and angle criterions, so select real long scratches only.</p>
-<h4>Scratch removing</h4>
+<h4>Scratch removal</h4>
 <p>Scratches may be either partially transparent, smooth (with image details), or opaque (with no details or almost destroyed).<br>
 In the first case, plugin can subtract smooth (blurred) part of luma scratches variation from original image. Therefore, image details are kept.<br>
 In the second case, plugin replaces scratched pixels by mean luma values from some neighbours pixels (in same row).<br>
 We have also intermediate case by setting some percent of detail to keep.<br>
 In all cases, some nearest neighbours pixels may be also partially changed for smooth transition.</p>
-<h3>Needed software</h3>
-<p>The program is plugin (filter) for free  Avisynth 2.5.<br>
-Tested with versions 2.55beta to 2.5.8. Should work for Avisynth 2.6.0 too.<br>
-Compiled with  MS VC++ Toolkit 2003.</p>
-<h3>Calling syntax</h3>
+<h3>Usage in Avisynth+</h3>
 <p><code>DeScratch</code>(<var>int mindif, int asym, int maxgap, int maxwidth, int minlen, int maxlen, int maxangle, int blurlen, int keep, int border, 
 int modeY, int modeU, int modeV, int mindifUV, bool mark, int minwidth, int left, int right</var>)</p>
+<h3>Usage in VapourSynth</h3>
+<p><code>descratch.DeScratch</code>(<var>vnode clip, int mindif, int asym, int maxgap, int maxwidth, int minlen, int maxlen, int maxangle, int blurlen, int keep, int border, 
+int modeY, int modeu, int modeu, int mindifuv, bool mark, int minwidth, int left, int right</var>)</p>
 <p>All parameters are named and optional.</p>
-<h3>Plugin Parameters</h3>
+<h3>Plugin Parameters (all lowercase for VapourSynth)</h3>
 <p><var>mindif</var> - minimal difference of pixel value in scratch from neighbours pixels for luma plane<br>
 &nbsp;&nbsp;&nbsp; (from 1 to 255, default 5):<br>
 <var>asym</var> - maximal asymmetry of neighbors pixels (from 0 to 255, default 10)<br>
@@ -152,16 +150,11 @@ Please donate for support.</p>
   <li>Version 0.9.0.0, September 09, 2006 - source code licensed under GNU GPL v2</li>
   <li>Version 0.9.1, February 02, 2016 -  fixed scratch border</li>
   <li>Version 1.0, February 05, 2016 -  more maxwidth values, added minwidth, left and right margins, improved detecting, 
-  removed adaptation of kept value to pixels luma difference.</li>
+ removed adaptation of kept value to pixels luma difference.</li>
   <li>Version 1.1, February 15, 2016 -  more smooth scratch borders removing</li>
-
+  <li>Version 2.0, October 25, 2023 -  added YV16, YV24 and VapourSynth support</li>
 </ul>
 <h3>Current version limitations:</h3>
-<p>The plugin works only in YV12.</p>
-<h3>Download</h3>
-<cite>
-<p><a href="descratch110.zip">Download DeScratch version 1.1</a></p>
-</cite>
-<p><a href="../">Return to main page</a></p>
+<p>The plugin works in YV12, YV16 and YV24.</p>
 </body>
 </html>
