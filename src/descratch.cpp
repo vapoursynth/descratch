@@ -676,6 +676,6 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
 // Init
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->configPlugin("com.vapoursynth.descratch", "descratch", "DeScratch for Vapoursynth and friends", VS_MAKE_VERSION(2, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
+    vspapi->configPlugin("com.vapoursynth.descratch", "descratch", "DeScratch for Vapoursynth and friends", VS_MAKE_VERSION(3, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
     vspapi->registerFunction("DeScratch", "clip:vnode;mindif:int:opt;asym:int:opt;maxgap:int:opt;maxwidth:int:opt;minlen:int:opt;maxlen:int:opt;maxangle:float:opt;blurlen:int:opt;keep:int:opt;border:int:opt;modey:int:opt;modeu:int:opt;modev:int:opt;mindifuv:int:opt;mark:int:opt;minwidth:int:opt;left:int:opt;right:int:opt;", "clip:vnode;", deScratchCreate, nullptr, plugin);
 }
