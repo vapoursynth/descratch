@@ -6,7 +6,7 @@ project('DeScratch', 'cpp',
     version: '4.0',
 )
 
-incdir = include_directories('vapoursynth/include', 'AviSynthPlus\avs_core\include')
+incdir = include_directories('vapoursynth/include', 'AviSynthPlus/avs_core/include')
 
 py = import('python').find_installation(pure: false)
 
