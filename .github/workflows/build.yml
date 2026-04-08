@@ -21,6 +21,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+      with:
+        submodules: recursive
 
     - uses: pypa/cibuildwheel@v3.4.0
       env:
@@ -51,6 +53,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+      with:
+        submodules: recursive
 
     - uses: msys2/setup-msys2@v2
       with:
