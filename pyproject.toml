@@ -32,4 +32,4 @@ Repository = "https://github.com/vapoursynth/descratch.git"
 Issues = "https://github.com/vapoursynth/descratch/issues"
 
 [tool.meson-python.wheel]
-exclude = ["*/*.dll.a"]
+exclude = ["*/*.dll.a", "*/*.lib"]
