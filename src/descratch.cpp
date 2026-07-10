@@ -17,6 +17,7 @@ This plugin removes vertical scratches from digitized films.
 #include <algorithm>
 #include <memory>
 #include <cassert>
+#include <climits>
 
 constexpr BYTE SD_NULL = 0;
 constexpr BYTE SD_EXTREM = 1;
@@ -91,7 +92,7 @@ DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _max
     else if (mindifUV == 0)
         mindifUV = mindif; // v.0.5
     if ((maxgap < 0) || (maxgap > 255))
-        env->ThrowError("Descratch: maxgap must be >=0 and <=256!");
+        env->ThrowError("Descratch: maxgap must be >=0 and <=255!");
     if (!(maxwidth % 2) || (maxwidth < 1) || (maxwidth > 15))
         env->ThrowError("Descratch: maxwidth must be odd from 1 to 15!");
     if ((minlen <= 0))
@@ -131,9 +132,13 @@ DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _max
 
     // create temporary array for scratches data
     scratchdata = (BYTE *)malloc(vi.height * vi.width);
+    if (!scratchdata)
+        env->ThrowError("Descratch: out of memory!");
 
     int down_height = (vi.height) / (1 + blurlen);
     if (down_height % 2) down_height -= 1;
+    if (down_height < 2)
+        env->ThrowError("Descratch: blurlen is too large for the clip height!");
     AVSValue down_args[3] = { child, width, down_height };
     PClip down_clip = env->Invoke("BilinearResize", AVSValue(down_args, 3)).AsClip();
 
@@ -141,6 +146,8 @@ DeScratch::DeScratch(PClip _child, int _mindif, int _asym, int _maxgap, int _max
     blured_clip = env->Invoke("BicubicResize", AVSValue(blur_args, 3)).AsClip();
 
     buf = (BYTE *)malloc(height * buf_pitch);
+    if (!buf)
+        env->ThrowError("Descratch: out of memory!");
 }
 
 template<int maxwidth>
@@ -468,7 +475,7 @@ AVSValue __cdecl Create_DeScratch(AVSValue args, void *user_data, IScriptEnviron
         args[15].AsBool(false), //mark
         args[16].AsInt(1), //mindwidth
         args[17].AsInt(0), // window left (inclusive)
-        args[18].AsInt(4096), // window right (exclusive)
+        args[18].AsInt(INT_MAX), // window right (exclusive), clamped to frame width
         env);
 }
 
@@ -476,6 +483,10 @@ const AVS_Linkage *AVS_linkage = 0;
 extern "C" __declspec(dllexport) const char *__stdcall AvisynthPluginInit3(IScriptEnvironment * env, const AVS_Linkage *const vectors) {
     AVS_linkage = vectors;
     env->AddFunction("descratch", "c[mindif]i[asym]i[maxgap]i[maxwidth]i[minlen]i[maxlen]i[maxangle]f[blurlen]i[keep]i[border]i[modeY]i[modeU]i[modeV]i[mindifUV]i[mark]b[minwidth]i[left]i[right]i", Create_DeScratch, 0);
+    // The filter reuses shared per-instance scratch buffers (buf, scratchdata),
+    // so it must never run concurrently on the same instance. The env passed to
+    // AvisynthPluginInit3 always implements IScriptEnvironment2 under AviSynth+.
+    static_cast<IScriptEnvironment2 *>(env)->SetFilterMTMode("descratch", MT_SERIALIZED, true);
     return "DeScratch";
 }
 
@@ -592,7 +603,7 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
     d->wleft = vsapi->mapGetIntSaturated(in, "left", 0, &err);
     d->wright = vsapi->mapGetIntSaturated(in, "right", 0, &err);
     if (err)
-        d->wright = 4096;
+        d->wright = INT_MAX; // clamped to frame width below
 
     if (d->mindif <= 0)
         RETERROR("Descratch: mindif must be positive!");
@@ -603,7 +614,7 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
     else if (d->mindifUV == 0)
         d->mindifUV = d->mindif;
     if ((d->maxgap < 0) || (d->maxgap > 255))
-        RETERROR("Descratch: maxgap must be >=0 and <=256!");
+        RETERROR("Descratch: maxgap must be >=0 and <=255!");
     if (!(d->maxwidth % 2) || (d->maxwidth < 1) || (d->maxwidth > 15))
         RETERROR("Descratch: maxwidth must be odd from 1 to 15!"); // v.1.0
     if ((d->minlen <= 0))
@@ -651,6 +662,8 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
 
     int down_height = (vi->height) / (1 + d->blurlen);
     if (down_height % 2) down_height -= 1;
+    if (down_height < 2)
+        RETERROR("Descratch: blurlen is too large for the clip height!");
 
     VSMap *args1 = vsapi->createMap();
     vsapi->mapSetNode(args1, "clip", d->node, maAppend);
@@ -658,15 +671,29 @@ static void VS_CC deScratchCreate(const VSMap *in, VSMap *out, void *userData, V
     vsapi->mapSetInt(args1, "height", down_height, maAppend);
     VSMap *args2 = vsapi->invoke(vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core), "Bilinear", args1);
     vsapi->freeMap(args1);
+    if (vsapi->mapGetError(args2)) {
+        vsapi->mapSetError(out, vsapi->mapGetError(args2));
+        vsapi->freeMap(args2);
+        vsapi->freeNode(d->node);
+        return;
+    }
     vsapi->mapSetInt(args2, "width", d->width, maAppend);
     vsapi->mapSetInt(args2, "height", d->height, maAppend);
     VSMap *result = vsapi->invoke(vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core), "Bicubic", args2);
     vsapi->freeMap(args2);
+    if (vsapi->mapGetError(result)) {
+        vsapi->mapSetError(out, vsapi->mapGetError(result));
+        vsapi->freeMap(result);
+        vsapi->freeNode(d->node);
+        return;
+    }
     d->blured_clip = vsapi->mapGetNode(result, "clip", 0, nullptr);
     vsapi->freeMap(result);
 
     d->scratchdata = (BYTE *)malloc(vi->height * vi->width);
     d->buf = (BYTE *)malloc(d->height * d->buf_pitch);
+    if (!d->scratchdata || !d->buf)
+        RETERROR("Descratch: out of memory!");
 
     VSFilterDependency deps[] = { {d->node, rpStrictSpatial}, {d->blured_clip, rpStrictSpatial} }; /* Depending the the request patterns you may want to change this */
     vsapi->createVideoFilter(out, "DeScratch", vi, deScratchGetFrame, deScratchFree, fmParallelRequests, deps, 2, d.release(), core);

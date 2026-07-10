@@ -35,13 +35,13 @@ In all cases, some nearest neighbours pixels may be also partially changed for s
 int modeY, int modeU, int modeV, int mindifUV, bool mark, int minwidth, int left, int right</var>)</p>
 <h3>Usage in VapourSynth</h3>
 <p><code>descratch.DeScratch</code>(<var>vnode clip, int mindif, int asym, int maxgap, int maxwidth, int minlen, int maxlen, int maxangle, int blurlen, int keep, int border, 
-int modeY, int modeu, int modeu, int mindifuv, bool mark, int minwidth, int left, int right</var>)</p>
+int modey, int modeu, int modev, int mindifuv, bool mark, int minwidth, int left, int right</var>)</p>
 <p>All parameters are named and optional.</p>
 <h3>Plugin Parameters (all lowercase for VapourSynth)</h3>
 <p><var>mindif</var> - minimal difference of pixel value in scratch from neighbours pixels for luma plane<br>
 &nbsp;&nbsp;&nbsp; (from 1 to 255, default 5):<br>
 <var>asym</var> - maximal asymmetry of neighbors pixels (from 0 to 255, default 10)<br>
-<var>maxgap</var> - maximal vertical gap to be closed (from 0 to 255, default 3)<br>
+<var>maxgap</var> - maximal vertical gap to be closed (from 0 to 255, default 2)<br>
 <var>maxwidth</var> - maximal scratch width (odd from 1 to 15, default=3)<br>
 <var>minlen</var> - minimal scratch length (default = 100)<br>
 <var>maxlen</var> - maximal scratch length (default = 2048)<br>
@@ -60,7 +60,7 @@ int modeY, int modeu, int modeu, int mindifuv, bool mark, int minwidth, int left
 &nbsp;&nbsp;&nbsp; (set rejected extrems pixels to grey, set scratches pixels to white or black)<br>
 <var>minwidth</var> - minimal scratch width (odd from 1 to 15, default=1)<br>
 <var>left</var> - left margin of processing window (inclusive), default=0<br>
-<var>right</var> - right margin of processing window (exclusive), default=frame width or 4096<br>
+<var>right</var> - right margin of processing window (exclusive), default = frame width<br>
 </p>
 <p>
 <var>maxgap</var>, <var>maxwidth</var>, <var>minwidth</var>, <var>minlen</var>, <var>blurlen</var>, 
